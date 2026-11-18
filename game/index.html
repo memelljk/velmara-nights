@@ -1,75 +1,86 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VELMARA NIGHTS — a neon port-city crime game</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2312041c'/%3E%3Ctext x='8' y='12' font-size='11' text-anchor='middle' fill='%23ff4fd8'%3EV%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="neon.css">
+<title>Velmara Nights - a rain-soaked getaway in a neon port city</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b1020'/%3E%3Ctext x='8' y='12' font-size='11' text-anchor='middle' fill='%23ff5fd2'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="./neon.css">
 </head>
 <body>
-<div id="app"></div>
-
-<div id="title">
-  <div class="title-inner">
-    <h1>VELMARA <span>NIGHTS</span></h1>
-    <p class="tag">Rain. Neon. One driver for hire. Six jobs that own the night.</p>
-    <button id="btn-new">NEW GAME</button>
-    <button id="btn-continue">CONTINUE</button>
-    <p class="controls">WASD drive / walk · Mouse orbit &amp; aim · Click shoot · E enter / talk / steal · F melee · G rob · R reload · Space handbrake · P city map · M mute · Esc pause · 1 race · 2 courier</p>
-  </div>
-</div>
+<canvas id="game" aria-label="Velmara Nights: third-person open-world driving and on-foot action"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
 
 <div id="hud" style="display:none">
   <div id="topbar">
-    <div id="cash">$120</div>
-    <div id="rep">ROOKIE · REP 0</div>
-    <div id="clock">22:10</div>
-    <div id="district">NEON MILE</div>
-    <div id="muted"></div>
+    <div class="stat"><span class="lab">CASH</span><span id="cash">$0</span></div>
+    <div class="stat"><span class="lab">RANK</span><span id="rep">NOBODY</span></div>
+    <div class="stat"><span class="lab">TIME</span><span id="clock">21:40</span></div>
+    <div class="stat"><span class="lab">WANTED</span><span id="stars">☆☆☆☆☆</span></div>
   </div>
-  <div id="stars">☆☆☆☆☆</div>
-  <div id="healthwrap"><div id="healthfill"></div></div>
-  <div id="bustedwrap" style="display:none"><label>BUSTED</label><div id="bustedbar"><div id="bustedfill"></div></div></div>
-  <div id="banner"></div>
-  <div id="objective-wrap"><div id="objective">Meet Odile at her Neon Mile booth</div><div id="dist"></div></div>
-  <div id="speed"></div>
-  <div id="ammo"></div>
-  <canvas id="minimap" width="176" height="176"></canvas>
-  <div id="dialogue" style="display:none">
-    <div id="dlg-name">Odile</div>
-    <div id="dlg-text"></div>
-    <div class="dlg-hint">E / Enter — continue</div>
+  <div id="healthWrap"><div id="healthFill"></div></div>
+  <div id="objective" style="display:none">
+    <div id="objTitle">FIRST PARCEL</div>
+    <div id="objText"></div>
+    <div id="objMeta"></div>
+  </div>
+  <div id="speedo" style="display:none">0 km/h</div>
+  <div id="ammo" style="display:none">PISTOL 12 / 48</div>
+  <canvas id="minimap" width="168" height="168"></canvas>
+  <div id="bustedWrap" style="display:none"><span>BUSTED</span><div id="bustedBar"><div id="bustedFill"></div></div></div>
+  <div id="interact" style="display:none"></div>
+  <div id="toast"></div>
+  <div id="controls">WASD drive / walk - E enter &amp; talk - F rob / shove - mouse shoot - R reload - Space handbrake - P map - M mute</div>
+</div>
+
+<div id="dialogue" style="display:none">
+  <div id="dlgName">Odile</div>
+  <div id="dlgText"></div>
+  <div id="dlgHint">Enter / E - continue</div>
+</div>
+
+<div id="mapWrap" style="display:none"><canvas id="bigmap" width="560" height="560"></canvas></div>
+
+<div id="title" style="display:none">
+  <div class="titleCard">
+    <h1>VELMARA <span>NIGHTS</span></h1>
+    <p class="tag">Rain on neon. Five districts, one wheelman, and every badge in the harbor city awake.</p>
+    <p class="story">You are <b>Jax Rook</b>, getaway driver. <b>Odile Vane</b> runs the jobs from her pink booth on the Neon Mile: parcels, a stolen Orphee GT, the harbor vault, and one last run for the city limits.</p>
+    <button id="newBtn" type="button">NEW GAME</button>
+    <button id="continueBtn" type="button" style="display:none">CONTINUE</button>
+    <p id="saveNote">Progress saves on this device after every job.</p>
+    <p class="keys">WASD move - E interact / steal - F rob - mouse aim &amp; shoot - R reload - Space handbrake - Shift sprint - P map - Esc pause - M mute - 1 race - 2 courier</p>
   </div>
 </div>
 
-<canvas id="fullmap" width="760" height="570" style="display:none"></canvas>
-
-<div id="pause" style="display:none">
-  <div class="title-inner">
+<div id="pauseMenu" style="display:none">
+  <div class="titleCard">
     <h2>PAUSED</h2>
-    <button id="btn-resume">RESUME</button>
-    <button id="btn-save">SAVE</button>
-    <p class="controls">Progress also saves after every mission. Continue restores cash, rep and mission.</p>
+    <button id="resumeBtn" type="button">RESUME</button>
+    <button id="saveBtn" type="button">SAVE</button>
+    <p class="keys">Esc resumes. Velmara waits for no one else.</p>
   </div>
 </div>
 
-<div id="dead" style="display:none">
-  <h2 id="dead-title">WASTED</h2>
+<div id="endCard" style="display:none">
+  <div class="titleCard">
+    <h2 id="endTitle">WASTED</h2>
+    <p id="endText"></p>
+  </div>
 </div>
 
-<script src="vendor/three.min.js"></script>
-<script src="src/geomerge.js"></script>
-<script src="src/citygen.js"></script>
-<script src="src/soundlab.js"></script>
-<script src="src/avatar.js"></script>
-<script src="src/drive.js"></script>
-<script src="src/crowds.js"></script>
-<script src="src/law.js"></script>
-<script src="src/combat.js"></script>
-<script src="src/interface.js"></script>
-<script src="src/story.js"></script>
-<script src="src/snapshots.js"></script>
-<script src="src/play.js"></script>
+<script src="./vendor/three.min.js"></script>
+<script src="./src/geomerge.js"></script>
+<script src="./src/citygen.js"></script>
+<script src="./src/avatar.js"></script>
+<script src="./src/drive.js"></script>
+<script src="./src/crowds.js"></script>
+<script src="./src/law.js"></script>
+<script src="./src/combat.js"></script>
+<script src="./src/soundlab.js"></script>
+<script src="./src/story.js"></script>
+<script src="./src/interface.js"></script>
+<script src="./src/snapshots.js"></script>
+<script src="./src/play.js"></script>
 </body>
 </html>

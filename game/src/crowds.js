@@ -1,74 +1,148 @@
-// crowds.js — traffic AI on the road grid + pedestrians who stroll, flee and can be robbed
+// crowds.js - Velmara's people and traffic. Pedestrians stroll the
+// sidewalks, scatter from gunfire and crashes, and can be robbed at
+// gunpoint. Traffic cars follow the road grid lane by lane, brake for the
+// car ahead, and flee when shots ring out near them.
 window.VN = window.VN || {};
-VN.spawnTraffic = function (scene, rnd, count) {
-  var cars = [];
-  for (var i = 0; i < count; i++) {
-    var onV = rnd() < 0.5;
-    var road = VN.ROADS[Math.floor(rnd() * VN.ROADS.length)];
-    var t = -280 + rnd() * 560;
-    var lane = rnd() < 0.5 ? -5.5 : 5.5;
-    var x = onV ? road + lane : t, z = onV ? t : road + lane;
-    var heading = onV ? (lane > 0 ? Math.PI : 0) : (lane > 0 ? -Math.PI / 2 : Math.PI / 2);
-    // align heading with travel: cars move along (sin h, cos h)
-    if (onV) heading = lane > 0 ? Math.PI : 0; else heading = lane > 0 ? Math.PI / 2 : -Math.PI / 2;
-    var car = VN.makeCar(Math.floor(rnd() * 5), x, z, heading);
-    car.parked = false; car.traffic = true; car.cruise = 9 + rnd() * 7;
-    car.axis = onV ? 'z' : 'x'; car.road = road; car.lane = lane;
-    scene.add(car.mesh); cars.push(car);
+
+VN.Ped = class Ped {
+  constructor(spawn, i) {
+    const palette = [0xd84f8a, 0x3f7ad8, 0xd8b13c, 0x53b04f, 0x8a5ed8, 0xd86a3c, 0xb0b6c0, 0x7ad8d0];
+    this.fig = VN.makeHuman({
+      skin: [0xc89878, 0x8a5a3c, 0xe8b898, 0x6a4230][i % 4],
+      body: palette[i % palette.length],
+      hair: [0x1c1410, 0x3a2418, 0x0e0c0a, 0x6a5138][i % 4],
+      dress: i % 5 === 3,
+    });
+    this.group = this.fig.group;
+    this.x = spawn.x; this.z = spawn.z;
+    this.heading = (i * 1.7) % (Math.PI * 2);
+    this.speed = 0;
+    this.state = 'stroll';
+    this.fleeT = 0;
+    this.target = null;
+    this.pickTarget();
+    this.health = 30;
+    this.dead = false;
+    this.robbedAt = -99;
+    this.isThug = false;
+    this.syncMesh();
   }
-  return cars;
-};
-VN.spawnParked = function (scene, rnd, count) {
-  var cars = [];
-  var spots = [[16, 128], [-14, 60], [26, -14], [-128, 30], [132, -40], [-40, 132], [90, 246], [-246, -90], [246, 150], [-70, -128], [40, -246], [-160, 246]];
-  for (var i = 0; i < count; i++) {
-    var s = spots[i % spots.length];
-    var car = VN.makeCar(i % 5, s[0] + (i > 11 ? 8 : 0), s[1], (i % 4) * Math.PI / 2);
-    car.parked = true; scene.add(car.mesh); cars.push(car);
-  }
-  return cars;
-};
-VN.updateTraffic = function (cars, dt, heroPos, gunfire) {
-  cars.forEach(function (car) {
-    if (!car.traffic || car.driver === 'player') return;
-    var ahead = { x: car.x + Math.sin(car.heading) * 9, z: car.z + Math.cos(car.heading) * 9 };
-    var blocked = VN.collides(ahead.x, ahead.z, 1) || cars.some(function (o) { return o !== car && Math.abs(o.x - ahead.x) < 3.4 && Math.abs(o.z - ahead.z) < 3.4; });
-    var fleeing = gunfire && Math.hypot(car.x - heroPos.x, car.z - heroPos.z) < 42;
-    var target = blocked ? 0 : (fleeing ? 24 : car.cruise);
-    car.speed += (target - car.speed) * Math.min(1, dt * (blocked ? 6 : 1.4));
-    car.x += Math.sin(car.heading) * car.speed * dt;
-    car.z += Math.cos(car.heading) * car.speed * dt;
-    if (car.x > 330) car.x = -330; if (car.x < -330) car.x = 330;
-    if (car.z > 340) car.z = -320; if (car.z < -330) car.z = 330;
-    car.mesh.position.set(car.x, 0, car.z); car.mesh.rotation.y = car.heading;
-  });
-};
-VN.spawnPeds = function (scene, rnd, count) {
-  var shirts = [0xd84f6a, 0x3fa7d8, 0xd8a53f, 0x51d88a, 0xb78bff, 0xe8e2d4, 0x3fd8c8];
-  var peds = [];
-  var zones = [[-180, -45], [30, 150], [-60, -200], [180, 90], [60, 60], [-230, 120]];
-  for (var i = 0; i < count; i++) {
-    var zn = zones[i % zones.length];
-    var p = VN.makePerson(zn[0] + (rnd() - 0.5) * 46, zn[1] + (rnd() - 0.5) * 46, shirts[i % shirts.length], 0x232830, 0xb98a64);
-    scene.add(p.mesh); peds.push(p);
-  }
-  return peds;
-};
-VN.updatePeds = function (peds, dt, heroPos, gunfire, aiming) {
-  peds.forEach(function (p) {
-    if (p.health <= 0) { p.mesh.rotation.x = Math.PI / 2; p.mesh.position.y = 0.2; return; }
-    p.t -= dt;
-    var dx = p.x - heroPos.x, dz = p.z - heroPos.z, dist = Math.hypot(dx, dz);
-    if (gunfire && dist < 30) p.state = 'flee';
-    else if (aiming && dist < 9) p.state = 'robbed';
-    else if (p.t <= 0) { p.state = 'stroll'; p.heading = Math.random() * 6.28; p.t = 2 + Math.random() * 4; }
-    var sp = p.state === 'flee' ? 7 : p.state === 'robbed' ? 0 : 1.6;
-    if (p.state === 'flee') { p.heading = Math.atan2(dx, dz); }
-    if (sp > 0) {
-      var nx = p.x + Math.sin(p.heading) * sp * dt, nz = p.z + Math.cos(p.heading) * sp * dt;
-      if (!VN.collides(nx, nz, 0.4)) { p.x = nx; p.z = nz; }
-      else p.heading += 2.2 * dt;
+  pickTarget() {
+    const H = VN.CITY.H_ROADS, V = VN.CITY.V_ROADS;
+    if (Math.random() < 0.5) {
+      const hz = H[Math.floor(Math.random() * H.length)];
+      this.target = { x: this.x + (Math.random() - 0.5) * 160, z: hz + (Math.random() < 0.5 ? -10.3 : 10.3) };
+    } else {
+      const vx = V[Math.floor(Math.random() * V.length)];
+      this.target = { x: vx + (Math.random() < 0.5 ? -10.3 : 10.3), z: this.z + (Math.random() - 0.5) * 160 };
     }
-    p.mesh.position.set(p.x, 0, p.z); p.mesh.rotation.y = p.heading;
-  });
+    this.target.x = VN.clamp(this.target.x, -310, 310);
+    this.target.z = VN.clamp(this.target.z, -270, 225);
+  }
+  syncMesh() {
+    this.group.position.set(this.x, 0, this.z);
+    this.group.rotation.y = this.heading;
+  }
+  scare(fromX, fromZ, t) {
+    if (this.dead) return;
+    this.state = 'flee';
+    this.fleeT = t + 2.5 + Math.random() * 2;
+    this.heading = Math.atan2(this.x - fromX, this.z - fromZ);
+  }
+  update(dt, G) {
+    if (this.dead) return;
+    const now = G.time;
+    let want = 0;
+    if (this.state === 'flee') {
+      want = 4.6;
+      if (now > this.fleeT) { this.state = 'stroll'; this.pickTarget(); }
+    } else if (this.state === 'hostage') {
+      want = 0;
+    } else if (this.target) {
+      const dx = this.target.x - this.x, dz = this.target.z - this.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 1.6) this.pickTarget();
+      else {
+        const wantHeading = Math.atan2(dx, dz);
+        this.heading += VN.clamp(VN.angDiff(wantHeading, this.heading), -dt * 4, dt * 4);
+        want = 1.5;
+      }
+    }
+    this.speed = VN.lerp(this.speed, want, Math.min(1, dt * 5));
+    this.x += Math.sin(this.heading) * this.speed * dt;
+    this.z += Math.cos(this.heading) * this.speed * dt;
+    VN.pushOutCity(G.city, this, 0.5);
+    this.x = VN.clamp(this.x, -315, 315);
+    this.z = VN.clamp(this.z, -275, 230);
+    this.syncMesh();
+    this.fig.animate(dt, this.speed);
+  }
+  hurt(amount, G) {
+    this.health -= amount;
+    if (this.health <= 0 && !this.dead) {
+      this.dead = true;
+      this.group.rotation.x = -Math.PI / 2;
+      this.group.position.y = 0.25;
+      if (G && G.law) G.law.reportCrime('assault', this.x, this.z, 2);
+    } else {
+      this.scare(this.x + 5, this.z, G ? G.time : 0);
+    }
+  }
+};
+
+VN.TrafficBrain = class TrafficBrain {
+  constructor(car) {
+    this.car = car;
+    this.laneTarget = null;
+    this.pickNext();
+    this.stuckT = 0;
+  }
+  // Drive the grid: pick a target point on a road ahead, steer to it.
+  pickNext() {
+    const c = this.car;
+    const H = VN.CITY.H_ROADS, V = VN.CITY.V_ROADS;
+    const fx = -Math.sin(c.heading), fz = -Math.cos(c.heading);
+    let best = null, bestScore = -1e9;
+    const cand = [];
+    for (const z of H) for (const x of [-300, -150, 0, 150, 300]) cand.push({ x: x + 3.6, z: z + 3.6 });
+    for (const x of V) for (const z of [-260, -130, 0, 130, 200]) cand.push({ x: x + 3.6, z: z + 3.6 });
+    for (const p of cand) {
+      const dx = p.x - c.x, dz = p.z - c.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 25) continue;
+      const dot = (dx * fx + dz * fz) / (d || 1);
+      const score = dot * 100 - d * 0.05 + Math.random() * 4;
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    this.laneTarget = best || { x: 0, z: 20 };
+  }
+  update(dt, G) {
+    const c = this.car;
+    if (c.driver !== 'ai') return;
+    const t = this.laneTarget;
+    const dx = t.x - c.x, dz = t.z - c.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 7) this.pickNext();
+    const wantHeading = Math.atan2(-dx, -dz);
+    const diff = VN.angDiff(wantHeading, c.heading);
+    let throttle = 0.75, brake = false;
+    // Brake for anything close ahead (cars, the player, peds).
+    const fx = -Math.sin(c.heading), fz = -Math.cos(c.heading);
+    let blocked = false;
+    const scan = (ox, oz, r) => {
+      const rx = ox - c.x, rz = oz - c.z;
+      const ahead = rx * fx + rz * fz;
+      const side = Math.abs(rx * fz - rz * fx);
+      if (ahead > 0 && ahead < r && side < 2.4) blocked = true;
+    };
+    for (const other of G.cars) { if (other !== c) scan(other.x, other.z, 11); }
+    if (G.mode === 'foot') scan(G.player.x, G.player.z, 8);
+    for (const p of G.peds) { if (!p.dead) scan(p.x, p.z, 7); }
+    if (G.panicAt && G.time - G.panicAt < 3 && VN.dist2d(c.x, c.z, G.panicX, G.panicZ) < 40) {
+      throttle = 1; // flee the gunfire
+    } else if (blocked) { throttle = 0; brake = true; }
+    else if (Math.abs(diff) > 0.7) throttle = 0.35;
+    c.driveStep(dt, { throttle, steer: VN.clamp(diff * 1.6, -1, 1), brake, handbrake: false }, G.city);
+    c.setHeadlights(true);
+  }
 };

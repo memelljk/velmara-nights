@@ -1,73 +1,112 @@
-// snapshots.js — deterministic posed scenes for ?shot=<scene>&seed=7
-// Simulation is frozen in shot mode (play.js), so every pose below is exactly
-// what the camera sees: cars sit ON road lanes, cruisers behind the player.
+// snapshots.js - deterministic posed scenes for the screenshots (?shot=).
+// Headless Chrome on this VM composites frames only on demand and runs
+// real-time simulation at a fraction of real time, so scenes are POSED, not
+// played: positions, cars, cruisers, stars and HUD state are set directly,
+// then the still renders. No gameplay state is simulated for a shot.
 window.VN = window.VN || {};
-VN.applyShot = function (name) {
-  var g = VN.game;
-  g.startGame(true);
-  var hero = g.hero;
-  function poseCar(car, x, z, heading, speed) {
-    car.x = x; car.z = z; car.heading = heading; car.speed = speed || 0;
-    car.mesh.position.set(x, 0, z); car.mesh.rotation.y = heading;
-    g.scene.add(car.mesh); g.allCars.push(car);
-    return car;
-  }
-  if (name === 'cover') {
-    // pink Orphee GT on the x=0 avenue (Neon Mile), driving north, traffic ahead
-    var car = poseCar(VN.makeCar(0, 5.5, 168, Math.PI), 5.5, 168, Math.PI, 17);
-    g.enterCar(car, true);
-    poseCar(VN.makeCar(3, 5.5, 138, Math.PI), 5.5, 138, Math.PI, 10);   // traffic ahead, same lane
-    poseCar(VN.makeCar(4, -5.5, 124, 0), -5.5, 124, 0, 10);               // oncoming
-    VN.story.idx = 0; VN.story.active = true; VN.story.step = 0;
-    VN.ui.showBanner('FIRST PARCEL'); VN.ui.setObjective(VN.MISSIONS[0].steps[0].label);
-    g.camYaw = 0; g.camPitch = 0.3;
-  } else if (name === 'chase') {
-    var coupe = poseCar(VN.makeCar(1, 5.5, -36, Math.PI), 5.5, -36, Math.PI, 26);
-    g.enterCar(coupe, true);
-    // FOUR cruisers behind the player car (south of it, in frame), light bars on
-    var spots = [[-2, -32], [9.5, -32.5], [-2, -28], [9.5, -28.5]];
-    for (var i = 0; i < 4; i++) {
-      var pc = VN.makeCar(1, spots[i][0], spots[i][1], Math.PI, 0xe8ecf2);
-      pc.mesh = VN.carMeshes(0xe8ecf2, { police: true });
-      pc.x = spots[i][0]; pc.z = spots[i][1]; pc.heading = Math.PI;
-      pc.mesh.position.set(pc.x, 0, pc.z); pc.mesh.rotation.y = Math.PI;
-      g.scene.add(pc.mesh); VN.law.cars.push(pc);
+
+VN.SHOTS = {
+  apply(G, name) {
+    const ui = G.ui;
+    ui.hideTitle();
+    G.cash = 1840;
+    G.rep = 120;
+    G.health = 92;
+    G.clockMinutes = 23 * 60 + 12;
+    const cam = (x, y, z, lx, ly, lz) => {
+      G.camera.position.set(x, y, z);
+      G.camera.lookAt(lx, ly, lz);
+    };
+    const mission = (idx, legIdx, extra) => {
+      G.story.active = Object.assign(
+        { mission: VN.MISSIONS[idx], legIdx, timer: null, holdT: 0, thugs: [], aliveCount: 0 },
+        extra || {}
+      );
+      const leg = G.story.currentLeg();
+      ui.setObjective(VN.MISSIONS[idx].title, leg ? leg.label : '');
+    };
+    const drivePose = (car, x, z, heading, speed) => {
+      car.x = x; car.z = z; car.heading = heading; car.speed = speed || 0;
+      car.driver = 'player';
+      car.parked = false;
+      car.setHeadlights(true);
+      car.syncMesh();
+      G.playerCar = car;
+      G.mode = 'car';
+      G.player.group.visible = false;
+      return car;
+    };
+    const findCar = (model, parked) => G.cars.find(c => c.model === model && (parked == null || c.parked === parked) && c !== G.gtCar) || G.cars[0];
+
+    if (name === 'cover') {
+      // Pink Orphee GT eastbound on the Neon Mile, traffic ahead, rain on.
+      const gt = new VN.Car({ x: 30, z: 23.6, heading: -Math.PI / 2, model: 'gt', color: 0xff5fa8 }, {});
+      G.scene.add(gt.group); G.scene.add(gt.smoke);
+      G.cars.push(gt);
+      drivePose(gt, 30, 23.6, -Math.PI / 2, 17);
+      const ahead1 = findCar('sedan', false);
+      ahead1.x = 58; ahead1.z = 23.6; ahead1.heading = -Math.PI / 2; ahead1.speed = 9; ahead1.syncMesh();
+      const ahead2 = findCar('hatch', false);
+      ahead2.x = 84; ahead2.z = 16.4; ahead2.heading = Math.PI / 2; ahead2.speed = 8; ahead2.syncMesh();
+      mission(0, 0);
+      cam(30 + Math.sin(-Math.PI / 2) * 11.5, 3.6, 23.6 + Math.cos(-Math.PI / 2) * 11.5, 44, 1.8, 23.6);
+    } else if (name === 'chase') {
+      // Player coupe at speed; the camera waits AHEAD of the car, looking
+      // back down the lane, so all four cruisers sit in frame behind it.
+      const coupe = findCar('coupe', true);
+      drivePose(coupe, 46, -56.4, -Math.PI / 2, 26);
+      coupe.color = 0xd8b13c;
+      for (let i = 0; i < 4; i++) {
+        const cruiser = new VN.Car(
+          { x: 34 - i * 10.5, z: -56.4 + (i % 2) * 1.4, heading: -Math.PI / 2, model: 'cruiser', color: 0x232a38 },
+          { police: true }
+        );
+        cruiser.driver = 'cop';
+        cruiser.speed = 24;
+        cruiser.setHeadlights(true);
+        cruiser.syncMesh();
+        G.scene.add(cruiser.group); G.scene.add(cruiser.smoke);
+        G.cars.push(cruiser);
+        G.law.cruisers.push(cruiser);
+      }
+      const off = G.law.spawnOfficer(G.law.cruisers[0]);
+      off.x = 52; off.z = -47.5; off.heading = -Math.PI / 2; off.syncMesh();
+      G.law.heat = 380;
+      G.law.stars = 4;
+      G.story.active = { mission: VN.MISSIONS[4], legIdx: 2, timer: null, holdT: 0, thugs: [], aliveCount: 0 };
+      ui.setObjective('THE HARBOR VAULT', 'Lose the police');
+      cam(46 + 17, 3.4, -56.4 + 2.5, 30, 1.6, -56.4);
+    } else if (name === 'onfoot') {
+      // Jax in the Old Market, ~12 m from the parcel marker, Odile across
+      // her travelling stall with the dialogue open, pistol drawn.
+      G.player.x = -147; G.player.z = -60;
+      G.player.heading = Math.atan2(-158 - -147, -66 - -60);
+      G.player.group.position.set(G.player.x, 0, G.player.z);
+      G.player.group.rotation.y = G.player.heading;
+      G.player.fig.setGun(true);
+      G.gunDrawn = true;
+      G.odile.group.position.set(-152, 0, -64.5);
+      G.odile.group.rotation.y = Math.atan2(G.player.x - -152, G.player.z - -64.5);
+      const near = [[-142, -56], [-155, -52], [-138, -66], [-160, -58]];
+      near.forEach((pt, i) => {
+        const ped = G.peds[i + 3];
+        if (ped) { ped.x = pt[0]; ped.z = pt[1]; ped.speed = 0; ped.syncMesh(); }
+      });
+      mission(0, 0);
+      ui.showDialogue('Odile', 'The parcel is in the blue stall behind you, Rook. Dry hands, quick feet - and do not open it.');
+      G.camYaw = G.player.heading + Math.PI;
+      cam(G.player.x + Math.sin(G.camYaw) * 7.5, 3.1, G.player.z + Math.cos(G.camYaw) * 7.5, -156, 1.5, -65);
+    } else if (name === 'mission') {
+      // Dockmaster Pickup on the harbor run: ~47 m out, ~96 s on the clock,
+      // the TATTOO sign lit ahead-right, oncoming traffic in the far lane.
+      const pickup = findCar('pickup', false) || findCar('pickup', true);
+      drivePose(pickup, 185, 183.6, -Math.PI / 2, 21);
+      const oncoming = findCar('sedan', false);
+      oncoming.x = 224; oncoming.z = 176.4; oncoming.heading = Math.PI / 2; oncoming.speed = 10; oncoming.syncMesh();
+      mission(1, 0, { timer: 95.6 });
+      cam(185 - 12.5, 4.6, 183.6 - 3.5, 205, 2.2, 186);
     }
-    var off = VN.makePerson(-10.5, -45, 0x1c2f57, 0x141c30, 0xa87858);
-    off.mesh.position.set(-10.5, 0, -45); g.scene.add(off.mesh); VN.law.officers.push(off);
-    VN.law.wanted = 4; VN.law.heat = 80;
-    VN.ui.showBanner('LOSE THE POLICE'); VN.ui.setObjective('Lose the police — break their sight line');
-    g.markerOverride = null;
-    g.camYaw = 0; g.camPitch = 0.3;
-  } else if (name === 'onfoot') {
-    hero.x = -158; hero.z = -38; hero.heading = 0.6;
-    hero.mesh.position.set(hero.x, 0, hero.z); hero.mesh.rotation.y = 0.6;
-    // posed pedestrians among the stalls
-    [[-148, -27, 0xd84f6a], [-143, -36, 0x3fa7d8], [-151, -20, 0xd8a53f]].forEach(function (pp) {
-      var p = VN.makePerson(pp[0], pp[1], pp[2], 0x232830, 0xb98a64);
-      p.mesh.position.set(pp[0], 0, pp[1]); p.mesh.rotation.y = 2.4;
-      g.scene.add(p.mesh);
-    });
-    VN.story.idx = 0;
-    VN.ui.dialogue(VN.MISSIONS[0].intro, function () { VN.story.start(); });
-    VN.ui.dlgQueue = [];
-    document.getElementById('dlg-name').textContent = 'Odile';
-    document.getElementById('dlg-text').textContent = VN.MISSIONS[0].intro[0][1];
-    document.getElementById('dialogue').style.display = 'block';
-    g.state = 'play';
-    VN.ui.setObjective('Meet Odile — marker 12 m');
-    g.markerOverride = { x: hero.x + 7, z: hero.z - 10 };
-    g.camYaw = -2.54; g.camPitch = 0.34;
-  } else if (name === 'mission') {
-    // Dockmaster Pickup on the harbor road (x=120 avenue), heading south to Dock Nine
-    var truck = poseCar(VN.makeCar(2, 125.5, 196, 0), 125.5, 196, 0, 15);
-    g.enterCar(truck, true);
-    poseCar(VN.makeCar(3, 114.5, 246, Math.PI), 114.5, 246, Math.PI, 11); // oncoming traffic
-    VN.story.idx = 1; VN.story.active = true; VN.story.step = 0; VN.story.timer = 96;
-    VN.ui.showBanner('NINE MINUTES TO DOCK NINE');
-    VN.ui.setObjective(VN.MISSIONS[1].steps[0].label);
-    g.markerOverride = { x: 153.5, z: 233.5 }; // ~47 m from the truck
-    g.camYaw = Math.PI; g.camPitch = 0.3;
-  }
-  g.updateHUDAndMap();
+    // One HUD refresh with the posed numbers (minimap included).
+    ui.update(0);
+  },
 };

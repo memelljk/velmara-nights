@@ -1,125 +1,137 @@
-// geomerge.js — merge many coloured boxes / planes into single meshes (low draw calls)
+// geomerge.js — static-geometry batching for Velmara Nights.
+// The whole city is baked into a handful of vertex-coloured meshes so the
+// renderer stays near a hundred draw calls instead of thousands. A Batch
+// collects transformed primitives, stamps one flat colour per vertex, and
+// builds a single BufferGeometry at the end.
 window.VN = window.VN || {};
-VN.mergeBoxes = function (list, opts) {
-  opts = opts || {};
-  var pos = [], nor = [], col = [], idx = [];
-  var c = new THREE.Color();
-  list.forEach(function (b) {
-    var base = pos.length / 3;
-    var w = b.w / 2, h = b.h / 2, d = b.d / 2;
-    c.set(b.color == null ? 0x888888 : b.color);
-    if (b.tint) { c.offsetHSL(0, 0, b.tint); }
-    var rot = b.rot || 0, cs = Math.cos(rot), sn = Math.sin(rot);
-    // 6 faces, each 4 verts
-    var faces = [
-      { n: [0, 1, 0], v: [[-w, h, -d], [w, h, -d], [w, h, d], [-w, h, d]] },
-      { n: [0, -1, 0], v: [[-w, -h, d], [w, -h, d], [w, -h, -d], [-w, -h, -d]] },
-      { n: [0, 0, 1], v: [[-w, -h, d], [-w, h, d], [w, h, d], [w, -h, d]] },
-      { n: [0, 0, -1], v: [[w, -h, -d], [w, h, -d], [-w, h, -d], [-w, -h, -d]] },
-      { n: [1, 0, 0], v: [[w, -h, d], [w, h, d], [w, h, -d], [w, -h, -d]] },
-      { n: [-1, 0, 0], v: [[-w, -h, -d], [-w, h, -d], [-w, h, d], [-w, -h, d]] }
-    ];
-    faces.forEach(function (f) {
-      var s = opts.shade == null ? 1 : opts.shade;
-      var shade = 0.72 + 0.28 * Math.abs(f.n[1]) + (f.n[2] > 0 ? 0.08 : 0);
-      f.v.forEach(function (v) {
-        var x = v[0] * cs - v[2] * sn, z = v[0] * sn + v[2] * cs;
-        pos.push(x + b.x, v[1] + b.y, z + b.z);
-        nor.push(f.n[0] * cs - f.n[2] * sn, f.n[1], f.n[0] * sn + f.n[2] * cs);
-        col.push(c.r * shade * s, c.g * shade * s, c.b * shade * s);
-      });
-      var n = pos.length / 3 - 4;
-      idx.push(n, n + 1, n + 2, n, n + 2, n + 3);
-    });
-    void base;
-  });
-  var g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setIndex(idx);
-  var mat = opts.material || new THREE.MeshLambertMaterial({ vertexColors: true });
-  var mesh = new THREE.Mesh(g, mat);
-  mesh.matrixAutoUpdate = false;
-  return mesh;
-};
-VN.mergePlanes = function (list, mat) {
-  // list: {w,h,x,y,z,rotY,color} vertical planes facing +z rotated by rotY
-  var pos = [], col = [], idx = [];
-  var c = new THREE.Color();
-  list.forEach(function (p) {
-    c.set(p.color == null ? 0xffffff : p.color);
-    var w = p.w / 2, h = p.h / 2, cs = Math.cos(p.rotY || 0), sn = Math.sin(p.rotY || 0);
-    [[-w, -h], [w, -h], [w, h], [-w, h]].forEach(function (v) {
-      pos.push(v[0] * cs + p.x, v[1] + p.y, v[0] * sn + p.z);
-      col.push(c.r, c.g, c.b);
-    });
-    var n = pos.length / 3 - 4;
-    idx.push(n, n + 1, n + 2, n, n + 2, n + 3); // material is DoubleSide — one set is enough
-  });
-  var g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  var mesh = new THREE.Mesh(g, mat || new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
-  mesh.matrixAutoUpdate = false;
-  return mesh;
-};
-VN.humanoidMesh = function (skin, shirt, pants) {
-  // ONE merged mesh: legs (pants colour always defined), torso, head, arms
-  pants = (pants == null ? shirt : pants); // fix: never undefined colour
-  var parts = [
-    { w: 0.26, h: 0.78, d: 0.26, x: -0.16, y: 0.39, z: 0, color: pants },
-    { w: 0.26, h: 0.78, d: 0.26, x: 0.16, y: 0.39, z: 0, color: pants },
-    { w: 0.62, h: 0.72, d: 0.34, x: 0, y: 1.14, z: 0, color: shirt },
-    { w: 0.34, h: 0.36, d: 0.34, x: 0, y: 1.68, z: 0, color: skin },
-    { w: 0.36, h: 0.1, d: 0.36, x: 0, y: 1.9, z: 0, color: 0x14100e },
-    { w: 0.16, h: 0.62, d: 0.16, x: -0.4, y: 1.12, z: 0, color: shirt },
-    { w: 0.16, h: 0.62, d: 0.16, x: 0.4, y: 1.12, z: 0, color: shirt }
-  ];
-  return VN.mergeBoxes(parts, {});
-};
-VN.carMeshes = function (bodyColor, opts) {
-  opts = opts || {};
-  var group = new THREE.Group();
-  var lower = opts.pickup ? 1.05 : 0.62;
-  var parts = [
-    { w: 1.8, h: lower, d: 4.3, x: 0, y: 0.55, z: 0, color: bodyColor },
-    { w: 1.6, h: 0.55, d: 2.1, x: 0, y: 1.05, z: opts.pickup ? -0.7 : -0.2, color: bodyColor },
-    { w: 1.62, h: 0.4, d: 1.9, x: 0, y: 1.08, z: opts.pickup ? -0.7 : -0.2, color: 0x101820 },
-    { w: 0.34, h: 0.62, d: 0.62, x: -0.82, y: 0.32, z: 1.35, color: 0x0a0a0a },
-    { w: 0.34, h: 0.62, d: 0.62, x: 0.82, y: 0.32, z: 1.35, color: 0x0a0a0a },
-    { w: 0.34, h: 0.62, d: 0.62, x: -0.82, y: 0.32, z: -1.35, color: 0x0a0a0a },
-    { w: 0.34, h: 0.62, d: 0.62, x: 0.82, y: 0.32, z: -1.35, color: 0x0a0a0a }
-  ];
-  if (opts.pickup) parts.push({ w: 1.8, h: 0.5, d: 1.7, x: 0, y: 0.95, z: 1.25, color: 0x2a2f36 });
-  if (opts.police) parts.push({ w: 1.2, h: 0.22, d: 0.5, x: 0, y: 1.42, z: -0.2, color: 0x222222 });
-  var body = VN.mergeBoxes(parts, {});
-  group.add(body);
-  var lampMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-  var lamps = [
-    { w: 0.36, h: 0.16, d: 0.06, x: -0.55, y: 0.62, z: 2.16, color: 0xfff2b0 },
-    { w: 0.36, h: 0.16, d: 0.06, x: 0.55, y: 0.62, z: 2.16, color: 0xfff2b0 },
-    { w: 0.36, h: 0.14, d: 0.06, x: -0.55, y: 0.62, z: -2.16, color: 0xff2233 },
-    { w: 0.36, h: 0.14, d: 0.06, x: 0.55, y: 0.62, z: -2.16, color: 0xff2233 }
-  ];
-  if (opts.police) {
-    lamps.push({ w: 0.55, h: 0.2, d: 0.46, x: -0.32, y: 1.44, z: -0.2, color: 0xff2244 });
-    lamps.push({ w: 0.55, h: 0.2, d: 0.46, x: 0.32, y: 1.44, z: -0.2, color: 0x2266ff });
+
+VN.GeoBatch = class GeoBatch {
+  constructor() {
+    this.pos = [];
+    this.nor = [];
+    this.col = [];
+    this.idx = [];
+    this.vertCount = 0;
+    this._color = new THREE.Color(0xffffff);
+    this._m = new THREE.Matrix4();
+    this._nm = new THREE.Matrix3();
+    this._v = new THREE.Vector3();
+    this._n = new THREE.Vector3();
   }
-  var lampMesh = VN.mergeBoxes(lamps, { material: lampMat });
-  group.add(lampMesh);
-  // headlight cones: faint, fog-free, front side only (proven fix)
-  var coneMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.05, fog: false, side: THREE.FrontSide, depthWrite: false, blending: THREE.AdditiveBlending });
-  var cones = [];
-  [-0.55, 0.55].forEach(function (lx) {
-    var cone = new THREE.Mesh(new THREE.ConeGeometry(0.8, 4.4, 10, 1, true), coneMat);
-    cone.rotation.x = Math.PI / 2;
-    cone.position.set(lx, 0.6, 3.9);
-    group.add(cone); cones.push(cone);
-  });
-  group.userData.cones = cones;
-  group.userData.body = body; group.userData.lamps = lampMesh;
-  return group;
+
+  // Append any BufferGeometry, transformed by `matrix`, tinted `color`.
+  addGeo(geo, matrix, color) {
+    const g = geo.index ? geo.toNonIndexed() : geo;
+    const p = g.attributes.position;
+    const n = g.attributes.normal;
+    this._color.set(color);
+    this._nm.getNormalMatrix(matrix);
+    for (let i = 0; i < p.count; i++) {
+      this._v.fromBufferAttribute(p, i).applyMatrix4(matrix);
+      this._n.fromBufferAttribute(n, i).applyMatrix3(this._nm).normalize();
+      this.pos.push(this._v.x, this._v.y, this._v.z);
+      this.nor.push(this._n.x, this._n.y, this._n.z);
+      this.col.push(this._color.r, this._color.g, this._color.b);
+    }
+    for (let i = 0; i < p.count; i++) this.idx.push(this.vertCount + i);
+    this.vertCount += p.count;
+    if (g !== geo) g.dispose();
+    return this;
+  }
+
+  matrix(x, y, z, ry, sx, sy, sz) {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry || 0, 0));
+    m.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(sx == null ? 1 : sx, sy == null ? 1 : sy, sz == null ? 1 : sz));
+    return m;
+  }
+
+  box(w, h, d, x, y, z, color, ry) {
+    const geo = new THREE.BoxGeometry(w, h, d);
+    this.addGeo(geo, this.matrix(x, y, z, ry || 0), color);
+    geo.dispose();
+    return this;
+  }
+
+  // A box that can also lean (roof props, crane arms, ramps).
+  boxEuler(w, h, d, x, y, z, color, euler) {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion().setFromEuler(euler || new THREE.Euler(0, 0, 0));
+    m.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(1, 1, 1));
+    const geo = new THREE.BoxGeometry(w, h, d);
+    this.addGeo(geo, m, color);
+    geo.dispose();
+    return this;
+  }
+
+  cyl(rt, rb, h, seg, x, y, z, color) {
+    const geo = new THREE.CylinderGeometry(rt, rb, h, seg || 7);
+    this.addGeo(geo, this.matrix(x, y, z, 0), color);
+    geo.dispose();
+    return this;
+  }
+
+  cone(r, h, seg, x, y, z, color) {
+    const geo = new THREE.ConeGeometry(r, h, seg || 8);
+    this.addGeo(geo, this.matrix(x, y, z, 0), color);
+    geo.dispose();
+    return this;
+  }
+
+  sphere(r, x, y, z, color) {
+    const geo = new THREE.SphereGeometry(r, 8, 6);
+    this.addGeo(geo, this.matrix(x, y, z, 0), color);
+    geo.dispose();
+    return this;
+  }
+
+  // Flat quad facing +Z before rotation (windows, markings, glow cards).
+  quad(w, h, x, y, z, color, ry) {
+    const geo = new THREE.PlaneGeometry(w, h);
+    this.addGeo(geo, this.matrix(x, y, z, ry || 0), color);
+    geo.dispose();
+    return this;
+  }
+
+  build(material, shadows) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
+    geo.setIndex(this.idx);
+    geo.computeBoundingSphere();
+    const mesh = new THREE.Mesh(geo, material);
+    if (shadows) { mesh.castShadow = false; mesh.receiveShadow = false; }
+    mesh.matrixAutoUpdate = false;
+    return mesh;
+  }
+};
+
+// Materials shared by every batch.
+VN.MAT = {
+  solid: new THREE.MeshLambertMaterial({ vertexColors: true }),
+  basic: new THREE.MeshBasicMaterial({ vertexColors: true }),
+  flat: new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 18, specular: 0x222233 }),
+};
+
+// Deterministic PRNG (mulberry32) — the whole city hangs off this stream.
+VN.mulberry32 = function (seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+VN.clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+VN.lerp = (a, b, t) => a + (b - a) * t;
+VN.dist2d = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
+// Shortest signed angular difference a-b wrapped to [-PI, PI].
+VN.angDiff = function (a, b) {
+  let d = (a - b) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
 };

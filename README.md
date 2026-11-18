@@ -1,84 +1,64 @@
-# VELMARA NIGHTS
-
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/memelljk/velmara-nights/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/memelljk/velmara-nights/reward.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-Velmara only wakes up after the rain starts. **VELMARA NIGHTS** is a third-person
-open-world crime game set in that rain-soaked neon port city: you are Jax Rook, a
-getaway driver with a borrowed pistol, a fixer named Odile Vane who always has one
-more job, and a police force that keeps very good notes.
+# Velmara Nights
 
-Drive anywhere. Steal anything with wheels. Outrun the interceptors, or end the
-night at St. Mirella Hospital paying the fee like everyone else.
+A third-person open-world crime game that runs entirely in the browser. Velmara is a
+rain-drowned port city lit by neon: five districts — the Neon Mile, the Harbor, the Old
+Market, The Heights and the Dockyards — with 205 buildings, 648 streetlights, a working
+harbor of piers and cranes, market stalls, container yards, live traffic and crowds.
 
-## The city
+You are **Jax Rook**, a getaway driver with a borrowed jacket and a clean record he is
+about to ruin. Fixer **Odile Vane** deals the work from her pink booth on the Neon Mile:
+six story missions that run from a first parcel pickup through a timed dock delivery,
+the theft of an indigo Orphee GT, a dock-crew fight and the harbor vault, to a final
+city-limits getaway with every badge in town lit up behind you. Checkpoint races and
+courier runs keep the cash flowing between story jobs.
 
-Five districts generated from a fixed seed, so every visit is the same Velmara:
-the **Neon Mile** with Odile's booth, the **Harbor** and its vault quay, the
-**Old Market** stalls, **The Heights**, and the **Dockyards** container maze —
-205 buildings with lit windows, 648 streetlights, cranes, piers and canvas-painted
-neon signs, all merged into a few hundred draw calls so the night stays smooth.
+## What is in the city
 
-## Six jobs, one reputation
+- **Driving** — steal anything: parked cars, traffic (drag the driver out) or police
+  cruisers. Arcade handling with handbrake drifts, damage and engine smoke.
+- **On foot** — orbit camera, sprint, pistol combat with mouse aim, tracers, reloads
+  and melee, plus gunpoint robberies.
+- **The law** — a 0–5 star wanted system with heat that decays out of sight, ram-happy
+  interceptor cruisers, foot officers at high heat, and a BUSTED meter. WASTED and
+  BUSTED both end at St. Mirella Hospital, minus a fee.
+- **A living city** — traffic that brakes, queues and flees gunfire; pedestrians who
+  stroll, scatter and empty their pockets at gunpoint; rain, wet neon, headlight cones.
+- **Presentation** — live circular minimap, a full city map, mission banners with live
+  distance and countdowns, dialogue, title and pause screens, a localStorage save with
+  Continue, and a fully synthesised WebAudio soundtrack (engine, sirens, gunshots,
+  rain, bassline). No audio files, no network requests, keyboard + mouse only.
 
-1. **First Parcel** — a quiet pickup at the Old Market that starts everything.
-2. **Nine Minutes to Dock Nine** — a timed harbor delivery in a Dockmaster Pickup.
-3. **Indigo Theft** — lift the indigo Orphee GT and hide it in the Heights.
-4. **Dock Crew** — four thugs in the container yard who shoot back.
-5. **The Harbor Vault** — hold the quay while the crew works, then lose the cops.
-6. **City Limits** — the last drive out of Velmara.
-
-Between jobs, checkpoint races and courier runs keep the cash coming in.
-
-## Systems
-
-- On-foot third-person play with an orbit camera; enter, exit and steal any car —
-  parked, moving traffic, even police interceptors.
-- Arcade driving with handbrake drift, collision damage and engine smoke.
-- Traffic that brakes, queues and flees gunfire; pedestrians who stroll, run,
-  and can be robbed at gunpoint.
-- A 0–5 star wanted system with heat decay, ramming interceptors, foot officers
-  at high stars, and a BUSTED meter when they corner you.
-- Pistol combat with mouse aim, tracers and reloads; WASTED / BUSTED respawns
-  at St. Mirella Hospital with a fee.
-- Full HUD: cash, reputation rank, clock, health, wanted stars, speed, ammo,
-  objective banner with distance and countdown, a live circular minimap and a
-  full city map on **P**.
-- Title screen, pause, and a localStorage save with Continue.
-- A WebAudio-only synth soundtrack and effects — engine, sirens, gunshots,
-  rain and a four-note bassline. No audio files, no network requests at runtime.
+The city is generated from a seed (`?seed=` in the URL; seed 7 is the canonical
+Velmara) and all static geometry is merged into a handful of draw calls, so the night
+stays smooth.
 
 ## Controls
 
 | Input | Action |
 | --- | --- |
 | WASD / arrows | Walk or drive |
-| Mouse | Orbit camera, aim |
-| Click | Shoot (on foot) |
-| E | Talk, enter / exit, steal a car |
-| F | Melee |
-| G | Rob a nearby pedestrian |
+| Mouse | Aim (click to shoot on foot); pointer lock orbits the camera |
+| E | Talk, enter / exit a car, steal |
+| F | Rob at gunpoint / shove |
+| Q | Draw or holster the pistol |
 | R | Reload |
 | Space | Handbrake |
+| Shift | Sprint |
 | P | Full city map |
+| 1 / 2 | Start a checkpoint race / courier run |
 | M | Mute |
 | Esc | Pause |
-| 1 / 2 | Start a checkpoint race / courier run |
 
-## Run it
+## Run it locally
 
 ```sh
-node serve.ts          # then open http://localhost:8080
+node serve.ts            # serves game/ at http://localhost:8080
 ```
 
-Or open `game/index.html` through any static file server. Everything is local:
-three.js r128 is vendored under `game/vendor/`, and the game makes zero network
-requests while it runs.
-
-Deterministic screenshot scenes live at `?shot=cover|chase|onfoot|mission&seed=7`
-(see `shots.json`), which is how the screenshots in `screenshots/` were captured.
-
-Hand-in plumbing: `MAKEFUN_OUTPUT_DIR=out node main.ts` copies `game/` and
-`screenshots/` to the output directory and writes `dossier.json` using the kit's
-own `buildDossier`, so the dossier matches the scorer's copy byte for byte.
+Open the page, press **New Game**, and walk to the pink booth. The hand-in program is
+`node main.ts`, which copies `game/` and `screenshots/` to the output directory and
+writes `dossier.json` with the vendored make.fun library.
