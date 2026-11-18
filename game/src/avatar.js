@@ -1,100 +1,139 @@
-// avatar.js — low-poly people built from boxes: Jax Rook (the player),
-// pedestrians in district-flavoured outfits, dock thugs and police officers.
-// One shared builder, walk-cycle limb swing, simple hit/death poses.
-window.VN = window.VN || {};
-
-VN.avatar = (function () {
+// avatar.js — Jax Rook, the getaway driver, and the shared low-poly
+// humanoid rig that pedestrians, officers, thugs and Odile are built from.
+// On-foot movement is third-person: WASD relative to the camera yaw, Shift
+// to run, limbs swinging with the stride, collisions against the city's
+// building boxes.
+window.V = window.V || {};
+(function () {
   'use strict';
 
-  var skinTones = [0xc98d64, 0x8a5a3b, 0xe8b48c, 0x6e4226, 0xd9a066];
-  var shirts = [0xb03a5b, 0x2e6fb0, 0x3fa065, 0xc7a23a, 0x7050b8, 0xcccccc, 0x384048, 0xd06030];
-  var pants = [0x23283a, 0x3a2e22, 0x1e3038, 0x4a4a52, 0x5c2430];
-
-  function box(w, h, d, color, x, y, z) {
-    var m = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, d),
-      new THREE.MeshLambertMaterial({ color: color })
-    );
-    m.position.set(x, y, z);
-    return m;
+  function limb(w, h, d, colour, px, py) {
+    var pivot = new THREE.Group();
+    pivot.position.set(px, py, 0);
+    var geo = new THREE.BoxGeometry(w, h, d);
+    geo.translate(0, -h / 2, 0);
+    var mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: colour }));
+    pivot.add(mesh);
+    return pivot;
   }
 
-  // opts: {skin, shirt, pants, hat, hatColor, officer, thug}
-  function buildPerson(opts) {
+  // A ~1.85 m figure: legs and arms pivot at hip and shoulder so the walk
+  // cycle is just two sine waves. The right hand can carry a pistol.
+  function buildHumanoid(opts) {
     var g = new THREE.Group();
-    var skin = opts.skin, shirt = opts.shirt, pantsC = opts.pants;
-    var torso = box(0.62, 0.72, 0.34, shirt, 0, 1.08, 0);
-    var head = box(0.34, 0.38, 0.34, skin, 0, 1.66, 0);
-    g.add(torso); g.add(head);
-    if (opts.officer) {
-      g.add(box(0.4, 0.1, 0.4, 0x1c2f66, 0, 1.9, 0));       // cap
-      g.add(box(0.4, 0.06, 0.22, 0x1c2f66, 0, 1.84, 0.2));   // brim
-      g.add(box(0.64, 0.14, 0.36, 0xd8b83a, 0, 1.32, 0));    // hi-vis band
-    } else if (opts.hat) {
-      g.add(box(0.42, 0.12, 0.42, opts.hatColor || 0x222222, 0, 1.9, 0));
-    } else {
-      g.add(box(0.36, 0.12, 0.36, 0x1a1410, 0, 1.9, 0));      // hair
+    var skin = opts.skin || 0xc89878;
+    var legL = limb(0.24, 0.86, 0.27, opts.pants, -0.15, 0.88);
+    var legR = limb(0.24, 0.86, 0.27, opts.pants, 0.15, 0.88);
+    var torso = new THREE.Mesh(
+      new THREE.BoxGeometry(0.64, 0.74, 0.36),
+      new THREE.MeshLambertMaterial({ color: opts.shirt })
+    );
+    torso.position.y = 1.26;
+    var armL = limb(0.19, 0.7, 0.21, opts.shirt, -0.42, 1.56);
+    var armR = limb(0.19, 0.7, 0.21, opts.shirt, 0.42, 1.56);
+    var head = new THREE.Mesh(
+      new THREE.BoxGeometry(0.35, 0.4, 0.35),
+      new THREE.MeshLambertMaterial({ color: skin })
+    );
+    head.position.y = 1.84;
+    g.add(legL); g.add(legR); g.add(torso); g.add(armL); g.add(armR); g.add(head);
+    if (opts.cap) {
+      var cap = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 0.12, 0.42),
+        new THREE.MeshLambertMaterial({ color: opts.cap })
+      );
+      cap.position.y = 2.06;
+      var brim = new THREE.Mesh(
+        new THREE.BoxGeometry(0.38, 0.05, 0.24),
+        new THREE.MeshLambertMaterial({ color: opts.cap })
+      );
+      brim.position.set(0, 2.0, 0.3);
+      g.add(cap); g.add(brim);
     }
-    if (opts.thug) g.add(box(0.36, 0.16, 0.36, 0x14141c, 0, 1.62, 0)); // mask band
-    var armL = new THREE.Group(), armR = new THREE.Group();
-    armL.position.set(-0.4, 1.38, 0); armR.position.set(0.4, 1.38, 0);
-    armL.add(box(0.18, 0.66, 0.2, shirt, 0, -0.3, 0));
-    armR.add(box(0.18, 0.66, 0.2, shirt, 0, -0.3, 0));
-    g.add(armL); g.add(armR);
-    var legL = new THREE.Group(), legR = new THREE.Group();
-    legL.position.set(-0.16, 0.74, 0); legR.position.set(0.16, 0.74, 0);
-    legL.add(box(0.22, 0.72, 0.24, pantsC, 0, -0.36, 0));
-    legR.add(box(0.22, 0.72, 0.24, pantsC, 0, -0.36, 0));
-    g.add(legL); g.add(legR);
-    // gun (hidden unless aiming / armed role)
-    var gun = box(0.08, 0.14, 0.42, 0x111116, 0, -0.58, 0.16);
-    gun.visible = false;
-    armR.add(gun);
-    return { group: g, armL: armL, armR: armR, legL: legL, legR: legR, gun: gun, head: head };
-  }
-
-  function makeJax() {
-    var p = buildPerson({ skin: 0xc98d64, shirt: 0x24304d, pants: 0x1c1c22, hat: false });
-    // Jax's magenta jacket stripe — his silhouette in every screenshot.
-    var stripe = box(0.64, 0.16, 0.36, 0xff2e88, 0, 1.22, 0);
-    p.group.add(stripe);
-    return p;
-  }
-  function makePed(rng) {
-    return buildPerson({
-      skin: skinTones[(rng() * skinTones.length) | 0],
-      shirt: shirts[(rng() * shirts.length) | 0],
-      pants: pants[(rng() * pants.length) | 0],
-      hat: rng() < 0.3, hatColor: shirts[(rng() * shirts.length) | 0]
-    });
-  }
-  function makeOfficer() {
-    return buildPerson({ skin: 0xd9a066, shirt: 0x24407c, pants: 0x182238, officer: true });
-  }
-  function makeThug(rng) {
-    return buildPerson({
-      skin: skinTones[(rng() * skinTones.length) | 0],
-      shirt: 0x30281e, pants: 0x22201c, thug: true
-    });
-  }
-
-  // Walk cycle: swing limbs by phase; aim pose raises the right arm.
-  function pose(p, phase, speed, aiming) {
-    var s = Math.sin(phase) * Math.min(1, speed) * 0.75;
-    p.legL.rotation.x = s;
-    p.legR.rotation.x = -s;
-    if (aiming) {
-      p.armR.rotation.x = -Math.PI / 2 + 0.08;
-      p.armL.rotation.x = -Math.PI / 2 + 0.3;
-    } else {
-      p.armL.rotation.x = -s * 0.8;
-      p.armR.rotation.x = s * 0.8;
+    if (opts.dress) {
+      var skirt = new THREE.Mesh(
+        new THREE.BoxGeometry(0.58, 0.5, 0.44),
+        new THREE.MeshLambertMaterial({ color: opts.dress })
+      );
+      skirt.position.y = 0.82;
+      g.add(skirt);
     }
-  }
-  function fall(p) { // death pose: flat on the back
-    p.group.rotation.x = -Math.PI / 2;
-    p.group.position.y = 0.25;
+    var pistol = new THREE.Mesh(
+      new THREE.BoxGeometry(0.09, 0.16, 0.34),
+      new THREE.MeshLambertMaterial({ color: 0x17181c })
+    );
+    pistol.position.set(0, -0.68, 0.14);
+    pistol.visible = false;
+    armR.add(pistol);
+    return { group: g, legL: legL, legR: legR, armL: armL, armR: armR, head: head, pistol: pistol };
   }
 
-  return { buildPerson: buildPerson, makeJax: makeJax, makePed: makePed, makeOfficer: makeOfficer, makeThug: makeThug, pose: pose, fall: fall };
+  function animateHumanoid(h, phase, amount) {
+    var s = Math.sin(phase) * 0.62 * amount;
+    h.legL.rotation.x = s;
+    h.legR.rotation.x = -s;
+    h.armL.rotation.x = -s * 0.8;
+    if (!h.aiming) h.armR.rotation.x = s * 0.8;
+    h.group.position.y = Math.abs(Math.cos(phase)) * 0.05 * amount;
+  }
+
+  // --- the hero -----------------------------------------------------------
+  var hero = null;
+
+  function createHero(scene, start) {
+    var rig = buildHumanoid({ shirt: 0x1f7a78, pants: 0x23242e, skin: 0xb98a64, cap: 0x14202c });
+    rig.group.position.set(start.x, 0, start.z);
+    scene.add(rig.group);
+    hero = {
+      rig: rig,
+      group: rig.group,
+      x: start.x, z: start.z,
+      ry: Math.PI,               // facing the Neon Mile road
+      walkPhase: 0,
+      moving: false,
+      inCar: null,
+      health: 100,
+      speedNow: 0
+    };
+    return hero;
+  }
+
+  // moveInput: {x: strafe -1..1, z: forward -1..1} in camera space.
+  function updateHero(dt, moveInput, camYaw, running, city) {
+    if (!hero || hero.inCar) return;
+    var mx = moveInput.x, mz = moveInput.z;
+    var len = Math.sqrt(mx * mx + mz * mz);
+    hero.moving = len > 0.05;
+    if (hero.moving) {
+      mx /= Math.max(1, len); mz /= Math.max(1, len);
+      var speed = running ? 8.8 : 5.0;
+      hero.speedNow = speed;
+      // camera-space input to world space
+      var sin = Math.sin(camYaw), cos = Math.cos(camYaw);
+      var wx = (mx * cos - mz * sin);
+      var wz = (-mz * cos - mx * sin);
+      // note: forward on screen is -z of the camera frame
+      var targetRy = Math.atan2(wx, wz);
+      hero.ry += V.angleDelta(hero.ry, targetRy) * Math.min(1, dt * 14);
+      hero.x += Math.sin(hero.ry) * speed * dt * Math.min(1, len + 0.3);
+      hero.z += Math.cos(hero.ry) * speed * dt * Math.min(1, len + 0.3);
+      var fixed = V.collideCircle(city, hero.x, hero.z, 0.55);
+      hero.x = fixed.x; hero.z = fixed.z;
+      hero.walkPhase += dt * speed * 1.55;
+    } else {
+      hero.speedNow = 0;
+      hero.walkPhase += dt * 1.4; // idle breathing sway
+    }
+    hero.group.position.set(hero.x, 0, hero.z);
+    hero.group.rotation.y = hero.ry;
+    animateHumanoid(hero.rig, hero.walkPhase, hero.moving ? 1 : 0.08);
+    hero.rig.aiming = !!hero.aiming;
+    if (hero.rig.aiming) hero.rig.armR.rotation.x = -1.35;
+  }
+
+  V.buildHumanoid = buildHumanoid;
+  V.animateHumanoid = animateHumanoid;
+  V.createHero = createHero;
+  V.updateHero = updateHero;
+  V.hero = function () { return hero; };
 })();
