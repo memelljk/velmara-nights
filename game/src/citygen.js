@@ -100,23 +100,31 @@ VN.CITY = (function () {
         const dist = districtAt(cx, cz);
         if (dist === 'dock' && rng() < 0.72) continue;
         if (dist === 'market' && cx < -120 && cz > -95 && cz < -30 && rng() < 0.6) continue;
-        const cols = bw > 52 ? 2 : 1, rows = bd > 52 ? 2 : 1;
+        const cols = Math.max(1, Math.floor(bw / 19)), rows = Math.max(1, Math.floor(bd / 19));
         for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
-          if (rng() < 0.14) continue;
-          const lx = cols === 1 ? cx : x0 + (bw * (a + 0.5)) / cols;
-          const lz = rows === 1 ? cz : z0 + (bd * (b + 0.5)) / rows;
-          candidates.push({ x: lx + (rng() - 0.5) * 4, z: lz + (rng() - 0.5) * 4, blockW: bw / cols, blockD: bd / rows });
+          if (rng() < 0.1) continue;
+          const lx = x0 + (bw * (a + 0.5)) / cols;
+          const lz = z0 + (bd * (b + 0.5)) / rows;
+          candidates.push({ x: lx + (rng() - 0.5) * 3, z: lz + (rng() - 0.5) * 3, blockW: bw / cols, blockD: bd / rows });
         }
       }
     }
+    // Shuffle deterministically, then take 205: the chosen lots stay spread
+    // across every district instead of clustering where the loops began.
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const tmp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp;
+    }
+    // Safety pad, Heights ridge only - two rows that can never reach a road
+    // (used only if the blocks somehow come up short; normally unused).
     let fi = 0;
-    while (candidates.length < 205 && fi < 600) {
-      const x = -308 + (fi % 29) * 22, z = -262 + Math.floor(fi / 29) * 24;
+    const ridgeRows = [-268, -250];
+    while (candidates.length < 205 && fi < 58) {
+      const x = -308 + (fi % 29) * 22, z = ridgeRows[Math.floor(fi / 29)];
       fi++;
-      if (V_ROADS.some(v => Math.abs(v - x) < 14)) continue;
-      if (H_ROADS.some(h => Math.abs(h - z) < 14)) continue;
+      if (V_ROADS.some(v => Math.abs(v - x) < 16)) continue;
       if (candidates.some(c => Math.abs(c.x - x) < 19 && Math.abs(c.z - z) < 19)) continue;
-      candidates.push({ x, z, blockW: 34, blockD: 34 });
+      candidates.push({ x, z, blockW: 30, blockD: 30 });
     }
     const lots = candidates.slice(0, 205);
 
