@@ -27,6 +27,17 @@ VN.makeCarMesh = function (model, color, opts) {
     body.box(dim.wid + 0.04, dim.hgt * 0.7, dim.len * 0.5, 0, 0.45 + dim.hgt / 2, 0.1, 0xe8ecf2);
     body.box(1.1, 0.18, 0.5, 0, 1.62, -0.15, 0x1c2027);
   }
+  // Wheels baked into the same shell: four dark cylinders, axis across.
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(corner => {
+    const wg = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 10);
+    const wm = new THREE.Matrix4().compose(
+      new THREE.Vector3(corner[0] * (dim.wid / 2 - 0.05), 0.36, corner[1] * (dim.len / 2 - 0.75)),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, Math.PI / 2)),
+      new THREE.Vector3(1, 1, 1)
+    );
+    body.addGeo(wg, wm, 0x0c0e12);
+    wg.dispose();
+  });
   const bodyMesh = body.build(VN.MAT.flat);
 
   const lamps = new VN.GeoBatch();
@@ -43,16 +54,9 @@ VN.makeCarMesh = function (model, color, opts) {
   const group = new THREE.Group();
   group.add(bodyMesh, lampMesh);
 
-  const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 10);
-  wheelGeo.rotateZ(Math.PI / 2);
-  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x0c0e12 });
+  // Wheels are merged into the body shell (one more saving of four draw
+  // calls per car); at night, in the rain, nobody reads wheel spin.
   const wheels = [];
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(corner => {
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.position.set(corner[0] * (dim.wid / 2 - 0.05), 0.36, corner[1] * (dim.len / 2 - 0.75));
-    group.add(w);
-    wheels.push(w);
-  });
 
   // Headlight cones: additive, opacity 0.04, fog OFF, FrontSide only -
   // as a plain material these render as opaque grey blobs.

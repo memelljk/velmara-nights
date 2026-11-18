@@ -302,7 +302,7 @@ VN.CITY = (function () {
         color: carPalette[(i + 4) % carPalette.length], model: models[(i + 2) % models.length],
       });
     }
-    const gtSpawn = { x: 76, z: 38, heading: Math.PI / 2, color: 0x4b3fd8, model: 'gt' };
+    const gtSpawn = { x: 63.6, z: 44, heading: 0, color: 0x4b3fd8, model: 'gt' };
     const pedSpawns = [];
     for (let i = 0; i < 26; i++) {
       const hz = H_ROADS[i % H_ROADS.length];
