@@ -1,150 +1,74 @@
-// crowds.js — the people of Velmara: pedestrians who stroll the sidewalks,
-// flee gunfire and crashes, and can be robbed at gunpoint; plus Odile Vane,
-// the fixer who waits at her Neon Mile booth and hands out the story.
-window.V = window.V || {};
-(function () {
-  'use strict';
-
-  var rng = V.makeRng(90210);
+// crowds.js — traffic AI on the road grid + pedestrians who stroll, flee and can be robbed
+window.VN = window.VN || {};
+VN.spawnTraffic = function (scene, rnd, count) {
+  var cars = [];
+  for (var i = 0; i < count; i++) {
+    var onV = rnd() < 0.5;
+    var road = VN.ROADS[Math.floor(rnd() * VN.ROADS.length)];
+    var t = -280 + rnd() * 560;
+    var lane = rnd() < 0.5 ? -5.5 : 5.5;
+    var x = onV ? road + lane : t, z = onV ? t : road + lane;
+    var heading = onV ? (lane > 0 ? Math.PI : 0) : (lane > 0 ? -Math.PI / 2 : Math.PI / 2);
+    // align heading with travel: cars move along (sin h, cos h)
+    if (onV) heading = lane > 0 ? Math.PI : 0; else heading = lane > 0 ? Math.PI / 2 : -Math.PI / 2;
+    var car = VN.makeCar(Math.floor(rnd() * 5), x, z, heading);
+    car.parked = false; car.traffic = true; car.cruise = 9 + rnd() * 7;
+    car.axis = onV ? 'z' : 'x'; car.road = road; car.lane = lane;
+    scene.add(car.mesh); cars.push(car);
+  }
+  return cars;
+};
+VN.spawnParked = function (scene, rnd, count) {
+  var cars = [];
+  var spots = [[16, 128], [-14, 60], [26, -14], [-128, 30], [132, -40], [-40, 132], [90, 246], [-246, -90], [246, 150], [-70, -128], [40, -246], [-160, 246]];
+  for (var i = 0; i < count; i++) {
+    var s = spots[i % spots.length];
+    var car = VN.makeCar(i % 5, s[0] + (i > 11 ? 8 : 0), s[1], (i % 4) * Math.PI / 2);
+    car.parked = true; scene.add(car.mesh); cars.push(car);
+  }
+  return cars;
+};
+VN.updateTraffic = function (cars, dt, heroPos, gunfire) {
+  cars.forEach(function (car) {
+    if (!car.traffic || car.driver === 'player') return;
+    var ahead = { x: car.x + Math.sin(car.heading) * 9, z: car.z + Math.cos(car.heading) * 9 };
+    var blocked = VN.collides(ahead.x, ahead.z, 1) || cars.some(function (o) { return o !== car && Math.abs(o.x - ahead.x) < 3.4 && Math.abs(o.z - ahead.z) < 3.4; });
+    var fleeing = gunfire && Math.hypot(car.x - heroPos.x, car.z - heroPos.z) < 42;
+    var target = blocked ? 0 : (fleeing ? 24 : car.cruise);
+    car.speed += (target - car.speed) * Math.min(1, dt * (blocked ? 6 : 1.4));
+    car.x += Math.sin(car.heading) * car.speed * dt;
+    car.z += Math.cos(car.heading) * car.speed * dt;
+    if (car.x > 330) car.x = -330; if (car.x < -330) car.x = 330;
+    if (car.z > 340) car.z = -320; if (car.z < -330) car.z = 330;
+    car.mesh.position.set(car.x, 0, car.z); car.mesh.rotation.y = car.heading;
+  });
+};
+VN.spawnPeds = function (scene, rnd, count) {
+  var shirts = [0xd84f6a, 0x3fa7d8, 0xd8a53f, 0x51d88a, 0xb78bff, 0xe8e2d4, 0x3fd8c8];
   var peds = [];
-  var SHIRTS = [0xb8563f, 0x3f6eb8, 0x53a05a, 0xb8a03f, 0x8a5fb0, 0x4fb0a5, 0xc2c7d1, 0x94553d, 0x3d7a8c, 0xd17ba0];
-  var PANTS = [0x23242e, 0x3a3f4c, 0x54463a, 0x2e3a54, 0x40343c];
-  var SKINS = [0xe8b98f, 0xc89878, 0x9c6b4a, 0x77502f, 0xf0c8a0];
-
-  function makePed(scene, x, z) {
-    var rig = V.buildHumanoid({
-      shirt: SHIRTS[(rng() * SHIRTS.length) | 0],
-      pants: PANTS[(rng() * PANTS.length) | 0],
-      skin: SKINS[(rng() * SKINS.length) | 0],
-      cap: rng() < 0.3 ? 0x1c202a : null
-    });
-    rig.group.position.set(x, 0, z);
-    scene.add(rig.group);
-    var ped = {
-      rig: rig, group: rig.group, x: x, z: z, ry: rng() * 6.28,
-      state: 'stroll', timer: 0, phase: rng() * 6,
-      tx: x, tz: z, speed: 1.6 + rng() * 0.9, health: 100, robbed: false
-    };
-    pickStrollTarget(ped, null);
-    peds.push(ped);
-    return ped;
+  var zones = [[-180, -45], [30, 150], [-60, -200], [180, 90], [60, 60], [-230, 120]];
+  for (var i = 0; i < count; i++) {
+    var zn = zones[i % zones.length];
+    var p = VN.makePerson(zn[0] + (rnd() - 0.5) * 46, zn[1] + (rnd() - 0.5) * 46, shirts[i % shirts.length], 0x232830, 0xb98a64);
+    scene.add(p.mesh); peds.push(p);
   }
-
-  // Sidewalk targets: a point along a road edge, so peds walk the grid.
-  function pickStrollTarget(ped, city) {
-    var lines = [-240, -144, -48, 48, 144, 240];
-    if (rng() < 0.55 && ped.road) {
-      // keep walking the same street
-      ped.tx = ped.road.vertical ? ped.road.line + ped.road.side * 14.6 : -280 + rng() * 560;
-      ped.tz = ped.road.vertical ? -280 + rng() * 560 : ped.road.line + ped.road.side * 14.6;
-      return;
+  return peds;
+};
+VN.updatePeds = function (peds, dt, heroPos, gunfire, aiming) {
+  peds.forEach(function (p) {
+    if (p.health <= 0) { p.mesh.rotation.x = Math.PI / 2; p.mesh.position.y = 0.2; return; }
+    p.t -= dt;
+    var dx = p.x - heroPos.x, dz = p.z - heroPos.z, dist = Math.hypot(dx, dz);
+    if (gunfire && dist < 30) p.state = 'flee';
+    else if (aiming && dist < 9) p.state = 'robbed';
+    else if (p.t <= 0) { p.state = 'stroll'; p.heading = Math.random() * 6.28; p.t = 2 + Math.random() * 4; }
+    var sp = p.state === 'flee' ? 7 : p.state === 'robbed' ? 0 : 1.6;
+    if (p.state === 'flee') { p.heading = Math.atan2(dx, dz); }
+    if (sp > 0) {
+      var nx = p.x + Math.sin(p.heading) * sp * dt, nz = p.z + Math.cos(p.heading) * sp * dt;
+      if (!VN.collides(nx, nz, 0.4)) { p.x = nx; p.z = nz; }
+      else p.heading += 2.2 * dt;
     }
-    var vertical = rng() < 0.5;
-    var line = lines[(rng() * lines.length) | 0];
-    var side = rng() < 0.5 ? -1 : 1;
-    ped.road = { vertical: vertical, line: line, side: side };
-    ped.tx = vertical ? line + side * 14.6 : -280 + rng() * 560;
-    ped.tz = vertical ? -280 + rng() * 560 : line + side * 14.6;
-    if (ped.tz > 246) ped.tz = 246;
-  }
-
-  function initCrowds(scene, city) {
-    for (var i = 0; i < 26; i++) {
-      var lines = city.roadLines;
-      var vertical = rng() < 0.5;
-      var line = lines[(rng() * lines.length) | 0];
-      var side = rng() < 0.5 ? -1 : 1;
-      var along = -270 + rng() * 520;
-      var x = vertical ? line + side * 14.6 : along;
-      var z = vertical ? along : line + side * 14.6;
-      if (z > 246) z = 246 - rng() * 30;
-      var ped = makePed(scene, x, z);
-      ped.road = { vertical: vertical, line: line, side: side };
-      pickStrollTarget(ped, city);
-    }
-    // Odile Vane at her booth, magenta dress, always facing the street
-    var rig = V.buildHumanoid({ shirt: 0xd94f9e, dress: 0xa02c6e, skin: 0x8a5a3c });
-    rig.group.position.set(city.odileBooth.x - 3.4, 0, city.odileBooth.z);
-    rig.group.rotation.y = -Math.PI / 2;
-    scene.add(rig.group);
-    V.odile = { rig: rig, x: city.odileBooth.x - 3.4, z: city.odileBooth.z, phase: 0 };
-  }
-
-  function panic(x, z, radius) {
-    for (var i = 0; i < peds.length; i++) {
-      var p = peds[i];
-      if (p.state === 'down') continue;
-      if (V.dist2d(p.x, p.z, x, z) < radius) {
-        p.state = 'flee';
-        p.timer = 2.5 + rng() * 2;
-        p.fleeX = x; p.fleeZ = z;
-      }
-    }
-  }
-
-  function updateCrowds(dt, city) {
-    for (var i = 0; i < peds.length; i++) {
-      var p = peds[i];
-      if (p.state === 'down') continue;
-      var speed = 0, moving = false;
-      if (p.state === 'flee') {
-        p.timer -= dt;
-        var dx = p.x - p.fleeX, dz = p.z - p.fleeZ;
-        var dl = Math.sqrt(dx * dx + dz * dz) || 1;
-        p.tx = p.x + dx / dl * 10; p.tz = p.z + dz / dl * 10;
-        speed = 6.4; moving = true;
-        if (p.timer <= 0) { p.state = 'stroll'; pickStrollTarget(p, city); }
-      } else if (p.state === 'handsup') {
-        p.timer -= dt;
-        p.rig.armL.rotation.x = -2.8;
-        p.rig.armR.rotation.x = -2.8;
-        if (p.timer <= 0) {
-          p.state = 'flee'; p.timer = 3; p.fleeX = p.robberX || p.x + 5; p.fleeZ = p.robberZ || p.z;
-        }
-      } else if (p.state === 'aimed') {
-        // frozen while a gun is on them; combat.js drives the outcome
-        p.rig.armL.rotation.x = -2.8;
-        p.rig.armR.rotation.x = -2.8;
-      } else {
-        speed = p.speed; moving = true;
-        if (V.dist2d(p.x, p.z, p.tx, p.tz) < 2.2) pickStrollTarget(p, city);
-      }
-      if (moving) {
-        var want = Math.atan2(p.tx - p.x, p.tz - p.z);
-        p.ry += V.angleDelta(p.ry, want) * Math.min(1, dt * 8);
-        p.x += Math.sin(p.ry) * speed * dt;
-        p.z += Math.cos(p.ry) * speed * dt;
-        var fixed = V.collideCircle(city, p.x, p.z, 0.5);
-        p.x = fixed.x; p.z = fixed.z;
-        p.phase += dt * speed * 2.4;
-      }
-      p.group.position.set(p.x, 0, p.z);
-      p.group.rotation.y = p.ry;
-      if (p.state !== 'handsup' && p.state !== 'aimed') {
-        V.animateHumanoid(p.rig, p.phase, moving ? (p.state === 'flee' ? 1 : 0.55) : 0.05);
-      }
-    }
-    if (V.odile) {
-      V.odile.phase += dt;
-      V.animateHumanoid(V.odile.rig, V.odile.phase * 0.7, 0.06);
-    }
-  }
-
-  function hurtPed(ped, dmg) {
-    ped.health -= dmg;
-    if (ped.health <= 0 && ped.state !== 'down') {
-      ped.state = 'down';
-      ped.group.rotation.x = -Math.PI / 2;
-      ped.group.position.y = 0.25;
-      return true;
-    }
-    if (ped.state !== 'down') { ped.state = 'flee'; ped.timer = 3; ped.fleeX = ped.x + 8; ped.fleeZ = ped.z; }
-    return false;
-  }
-
-  V.peds = peds;
-  V.initCrowds = initCrowds;
-  V.updateCrowds = updateCrowds;
-  V.crowdPanic = panic;
-  V.hurtPed = hurtPed;
-})();
+    p.mesh.position.set(p.x, 0, p.z); p.mesh.rotation.y = p.heading;
+  });
+};

@@ -1,579 +1,244 @@
-// play.js — boot and the main loop of Velmara Nights. Owns the renderer,
-// the night sky and rain, the orbit camera, all keyboard/mouse input, the
-// title → play → pause → end state machine, entering and stealing cars,
-// crime and damage callbacks for the other systems, the hospital respawn,
-// and the localStorage save. The frame dt is clamped both ways so a
-// hitched tab can never teleport the world.
-window.V = window.V || {};
+// play.js — boot, states, main loop (dt clamped both ways), input, save/Continue, respawn
+window.VN = window.VN || {};
 (function () {
-  'use strict';
-
-  var params = new URLSearchParams(window.location.search);
-  var SEED = parseInt(params.get('seed') || '7', 10);
-  if (isNaN(SEED)) SEED = 7;
-  var SHOT = params.get('shot');
-
-  var SAVE_KEY = 'velmara-nights-save-v1';
-  var scene, camera, renderer, city, rain, rainPos;
-  var state = SHOT ? 'shot' : 'title';   // title | play | pause | end | shot
+  var params = new URLSearchParams(location.search);
+  var seed = parseInt(params.get('seed') || '7', 10) || 7;
+  var shot = params.get('shot');
+  var scene, camera, renderer, clock;
   var keys = {};
-  var mouseL = false, mouseR = false, pointerLocked = false;
-  var camYaw = 2.6, camPitch = 0.34, lastMouseMove = -9;
-  var clockMinutes = 21 * 60;
-  var cash = 250;
-  var playerCar = null;
-  var endTimer = 0, raceCooldown = 0;
-  var elapsed = 0;
-  var mapOpen = false;
-  var heroRef = null;
+  var game = {
+    state: 'title', cash: 120, rep: 0, rank: 'ROOKIE', clockMin: 22 * 60 + 10,
+    hero: null, car: null, inCar: false, traffic: [], parked: [], peds: [], allCars: [],
+    camYaw: 0, camPitch: 0.32, gunfireT: 0, aiming: false, markerOverride: null, elapsed: 0,
+    get pos() { return this.inCar && this.car ? { x: this.car.x, z: this.car.z } : { x: this.hero.x, z: this.hero.z }; },
+    get heading() { return this.inCar && this.car ? this.car.heading : this.hero.heading; },
+    get marker() {
+      if (this.markerOverride) return this.markerOverride;
+      var side = VN.sideJobs.marker(); if (side) return side;
+      if (VN.story.active) { var s = VN.story.stepDef(); if (s && (s.kind === 'goto' || s.kind === 'steal' || s.kind === 'hold' || s.kind === 'clear')) return { x: s.x, z: s.z }; return null; }
+      if (!VN.story.done) return { x: 10, z: 96 };
+      return null;
+    },
+    addCash: function (n, why) { this.cash += n; VN.ui.showBanner('+$' + n + (why ? ' — ' + why : '')); VN.sound.cash(); },
+    addRep: function (n) {
+      this.rep += n;
+      this.rank = this.rep >= 120 ? 'VELMARA LEGEND' : this.rep >= 80 ? 'WHEELMAN' : this.rep >= 45 ? 'RUNNER' : this.rep >= 20 ? 'COURIER' : 'ROOKIE';
+    },
+    save: function () {
+      try { localStorage.setItem('velmara-save', JSON.stringify({ cash: this.cash, rep: this.rep, mission: VN.story.idx, clockMin: this.clockMin })); } catch (e) {}
+    },
+    loadSave: function () {
+      try { var s = JSON.parse(localStorage.getItem('velmara-save') || 'null'); if (!s) return false; this.cash = s.cash; this.rep = s.rep; VN.story.idx = s.mission || 0; this.clockMin = s.clockMin || this.clockMin; this.addRep(0); return true; } catch (e) { return false; }
+    },
+    enterCar: function (car, silent) {
+      this.car = car; this.inCar = true; car.driver = 'player'; car.parked = false; car.traffic = false;
+      this.hero.mesh.visible = false;
+      if (!silent) { VN.sound.init(); }
+    },
+    exitCar: function () {
+      if (!this.car) return;
+      this.hero.x = this.car.x + Math.cos(this.car.heading) * 2.4; this.hero.z = this.car.z - Math.sin(this.car.heading) * 2.4;
+      this.hero.mesh.visible = true; this.car.driver = null; this.car.parked = true; this.car = null; this.inCar = false;
+    },
+    nearestCar: function (maxD) {
+      var best = null, bd = maxD || 4.5, self = this;
+      this.allCars.concat(this.traffic).forEach(function (c) {
+        var d = Math.hypot(c.x - self.hero.x, c.z - self.hero.z);
+        if (d < bd) { bd = d; best = c; }
+      });
+      return best;
+    },
+    respawn: function (kind) {
+      VN.law.reset(scene);
+      this.exitCarSilent();
+      this.hero.health = 100; this.hero.x = VN.city.hospital.x; this.hero.z = VN.city.hospital.z;
+      this.hero.mesh.visible = true;
+      var fee = Math.min(this.cash, kind === 'busted' ? 150 : 100);
+      this.cash -= fee;
+      VN.ui.showBanner((kind === 'busted' ? 'BUSTED' : 'WASTED') + ' — St. Mirella fee $' + fee);
+      this.state = 'play'; document.getElementById('dead').style.display = 'none';
+    },
+    exitCarSilent: function () { if (this.car) { this.car.driver = null; this.car = null; } this.inCar = false; },
+    startGame: function (fresh) {
+      document.getElementById('title').style.display = 'none';
+      document.getElementById('hud').style.display = 'block';
+      if (!fresh) VN.sound.init();
+      this.state = 'play';
+      if (!VN.story.active && !VN.story.done) VN.ui.setObjective('Meet Odile at her Neon Mile booth (pink marker)');
+    },
+    updateHUDAndMap: function () {
+      VN.ui.updateHUD(this); VN.ui.drawMinimap(this);
+      if (VN.ui.mapOpen) VN.ui.drawFullMap(this);
+    }
+  };
+  VN.game = game;
+  Object.defineProperty(VN, 'camYaw', { get: function () { return game.camYaw; }, set: function (v) { game.camYaw = v; } });
 
-  // ---------------------------------------------------------------- boot
   function boot() {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x070a14);
-    scene.fog = new THREE.Fog(0x0d1322, 60, 470);
-    V.sceneRef = scene;
-    camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 900);
+    scene.background = new THREE.Color(0x0a0e1c);
+    scene.fog = new THREE.FogExp2(0x0d1120, 0.0038);
+    camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 900);
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    document.getElementById('stage').appendChild(renderer.domElement);
-
-    scene.add(new THREE.HemisphereLight(0x54648c, 0x141824, 1.5));
-    var moon = new THREE.DirectionalLight(0x8fb4ff, 0.75);
-    moon.position.set(90, 160, -70);
-    scene.add(moon);
-    scene.add(new THREE.AmbientLight(0x39466a, 0.85));
-    // a low moon disc and its halo, pure decoration
-    var moonDisc = new THREE.Mesh(new THREE.CircleGeometry(16, 24),
-      new THREE.MeshBasicMaterial({ color: 0xdfe9ff, fog: false }));
-    moonDisc.position.set(190, 150, -330);
-    moonDisc.lookAt(0, 40, 0);
-    scene.add(moonDisc);
-
-    city = V.generateCity(SEED);
-    V.cityRef = city;
-    scene.add(city.group);
-
-    heroRef = V.createHero(scene, city.playerStart);
-    V.initCars(scene, city);
-    V.initCrowds(scene, city);
-    V.initLaw(scene);
-    V.initCombat(scene);
-    V.initStory(scene, city);
-    makeRain();
-    wireCallbacks();
-    wireInput();
-    wireButtons();
-
-    if (SHOT) {
-      document.getElementById('title-screen').classList.add('hidden');
-      document.getElementById('hud').classList.remove('hidden');
-      cash = 1240;
-      V.story.rep = 46;
-      V.poseShot(SHOT, api());
-    } else {
-      refreshContinueButton();
-    }
-    window.addEventListener('resize', function () {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.6));
+    document.getElementById('app').appendChild(renderer.domElement);
+    // brightened lighting pass (proven fix)
+    scene.add(new THREE.AmbientLight(0x8899bb, 0.85));
+    var hemi = new THREE.HemisphereLight(0xbfd4ff, 0x2a2438, 1.05); scene.add(hemi);
+    var moon = new THREE.DirectionalLight(0xaac4ff, 0.75); moon.position.set(80, 160, -60); scene.add(moon);
+    var neonGlow = new THREE.PointLight(0xff4fd8, 1.1, 130); neonGlow.position.set(30, 16, 140); scene.add(neonGlow);
+    var harborGlow = new THREE.PointLight(0x37f2ff, 0.9, 150); harborGlow.position.set(180, 18, 280); scene.add(harborGlow);
+    VN.buildCity(scene, seed);
+    var rnd = VN.mulberry(seed * 31 + 5);
+    game.hero = VN.makeHero(); scene.add(game.hero.mesh);
+    game.traffic = VN.spawnTraffic(scene, rnd, 19);
+    game.parked = VN.spawnParked(scene, rnd, 12);
+    game.allCars = game.parked.slice();
+    // the indigo Orphee GT for mission 3 sits in parked spots (26,-14)
+    game.peds = VN.spawnPeds(scene, rnd, 26);
+    // Odile herself at her booth
+    var odile = VN.makePerson(10, 99.5, 0xff4fd8, 0x3a1030, 0xd9a077);
+    scene.add(odile.mesh); game.odile = odile;
+    // objective marker beam
+    var beam = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 26, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xffe14f, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+    beam.name = 'beam'; scene.add(beam); game.beam = beam;
+    VN.ui.init();
+    clock = new THREE.Clock();
+    bindInput();
+    document.getElementById('btn-new').addEventListener('click', function () { try { localStorage.removeItem('velmara-save'); } catch (e) {} VN.story.idx = 0; game.cash = 120; game.rep = 0; game.startGame(false); });
+    document.getElementById('btn-continue').addEventListener('click', function () { game.loadSave(); game.startGame(false); });
+    if (shot) { VN.applyShot(shot); }
     requestAnimationFrame(loop);
+    VN.__ready = true;
   }
 
-  function api() {
-    return {
-      scene: scene, camera: camera, city: city, hero: heroRef,
-      setCamera: function (x, y, z, lx, ly, lz) {
-        camera.position.set(x, y, z);
-        camera.lookAt(lx, ly, lz);
-      },
-      getState: function () { return state; }
-    };
-  }
-
-  function makeRain() {
-    var N = 1500;
-    rainPos = new Float32Array(N * 3);
-    var rng = V.makeRng(99);
-    for (var i = 0; i < N; i++) {
-      rainPos[i * 3] = (rng() - 0.5) * 110;
-      rainPos[i * 3 + 1] = rng() * 42;
-      rainPos[i * 3 + 2] = (rng() - 0.5) * 110;
-    }
-    var geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-    rain = new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0x9db8d8, size: 0.16, transparent: true, opacity: 0.55, depthWrite: false
-    }));
-    rain.frustumCulled = false;
-    scene.add(rain);
-  }
-
-  function updateRain(dt) {
-    var cx = camera.position.x, cz = camera.position.z;
-    for (var i = 0; i < rainPos.length; i += 3) {
-      rainPos[i + 1] -= 30 * dt;
-      rainPos[i] -= 3.5 * dt;
-      if (rainPos[i + 1] < 0) {
-        rainPos[i + 1] = 40;
-        rainPos[i] = cx + (Math.random() - 0.5) * 110;
-        rainPos[i + 2] = cz + (Math.random() - 0.5) * 110;
+  function bindInput() {
+    addEventListener('keydown', function (e) {
+      var k = e.key.toLowerCase(); keys[k] = true;
+      if (k === ' ') e.preventDefault();
+      VN.sound.init();
+      if (game.state === 'dialogue' && (k === 'e' || k === 'enter' || k === ' ')) { VN.ui.nextDialogue(); return; }
+      if (k === 'm') { var muted = VN.sound.toggleMute(); void muted; }
+      if (k === 'p' && game.state === 'play') { VN.ui.mapOpen = !VN.ui.mapOpen; document.getElementById('fullmap').style.display = VN.ui.mapOpen ? 'block' : 'none'; }
+      if (k === 'escape' && game.state === 'play') { game.state = 'pause'; document.getElementById('pause').style.display = 'flex'; }
+      else if (k === 'escape' && game.state === 'pause') { game.state = 'play'; document.getElementById('pause').style.display = 'none'; }
+      if (game.state !== 'play') return;
+      if (k === 'e') interact();
+      if (k === 'r') VN.combat.startReload();
+      if (k === 'f') VN.combat.melee(game.hero, VN.combat.thugs.concat(game.peds));
+      if (k === 'g' && !game.inCar) { // rob nearest ped at gunpoint
+        var near = game.peds.find(function (p) { return Math.hypot(p.x - game.hero.x, p.z - game.hero.z) < 8 && p.health > 0; });
+        if (near && !near.robbed) { near.robbed = true; game.addCash(35, 'Robbery'); VN.law.reportCrime(22, scene, game.pos); }
       }
-    }
-    rain.geometry.attributes.position.needsUpdate = true;
-    rain.position.set(0, 0, 0);
-  }
-
-  // ---------------------------------------------------------------- saves
-  function saveGame() {
-    try {
-      window.localStorage.setItem(SAVE_KEY, JSON.stringify({
-        cash: cash, rep: V.story.rep, nextMission: V.story.nextMission,
-        storyDone: V.story.storyDone, raceBest: V.story.raceBest || 0,
-        ammo: V.gun.ammo, reserve: V.gun.reserve
-      }));
-    } catch (e) { /* private mode: saving is best-effort */ }
-  }
-  function loadSave() {
-    try {
-      var raw = window.localStorage.getItem(SAVE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
-  }
-  function refreshContinueButton() {
-    document.getElementById('btn-continue').disabled = !loadSave();
-  }
-
-  function startNewGame() {
-    cash = 250;
-    V.story.rep = 0;
-    V.story.nextMission = 0;
-    V.story.storyDone = false;
-    V.story.raceBest = 0;
-    V.gun.ammo = 12; V.gun.reserve = 96;
-    beginPlay();
-    V.toast('Velmara Nights — go see Odile Vane at her booth on the Neon Mile.');
-  }
-  function continueGame() {
-    var s = loadSave();
-    if (!s) { startNewGame(); return; }
-    cash = s.cash; V.story.rep = s.rep; V.story.nextMission = s.nextMission;
-    V.story.storyDone = s.storyDone; V.story.raceBest = s.raceBest || 0;
-    V.gun.ammo = s.ammo; V.gun.reserve = s.reserve;
-    beginPlay();
-    V.toast('Welcome back to Velmara, Jax.');
-  }
-  function beginPlay() {
-    state = 'play';
-    document.getElementById('title-screen').classList.add('hidden');
-    document.getElementById('pause-screen').classList.add('hidden');
-    document.getElementById('hud').classList.remove('hidden');
-    if (V.sound) V.sound.start();
-  }
-
-  // ---------------------------------------------------------------- wiring
-  function wireButtons() {
-    var ui = V.ui.el;
-    ui.btnNew.addEventListener('click', startNewGame);
-    ui.btnContinue.addEventListener('click', continueGame);
-    ui.btnResume.addEventListener('click', function () {
-      document.getElementById('pause-screen').classList.add('hidden');
-      state = 'play';
+      if (k === '1') VN.sideJobs.startRace();
+      if (k === '2') VN.sideJobs.startCourier(VN.mulberry((Math.random() * 1e6) | 0));
     });
-    ui.btnSave.addEventListener('click', function () {
-      saveGame();
-      V.toast('Saved. Velmara will wait for you, Jax.');
+    addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; });
+    addEventListener('mousemove', function (e) {
+      if (game.state !== 'play') return;
+      game.camYaw -= e.movementX * 0.0032;
+      game.camPitch = Math.max(0.08, Math.min(0.9, game.camPitch + e.movementY * 0.002));
+      game.aiming = true;
     });
-    ui.btnRestart.addEventListener('click', function () {
-      try { window.localStorage.removeItem(SAVE_KEY); } catch (e) {}
-      window.location.reload();
+    addEventListener('mousedown', function (e) {
+      if (game.state !== 'play' || game.inCar || e.button !== 0) return;
+      VN.sound.init();
+      var dir = { x: Math.sin(game.hero.heading), z: Math.cos(game.hero.heading) };
+      var targets = VN.combat.thugs.concat(game.peds);
+      if (VN.combat.shoot(scene, game.hero, dir, targets, function () { game.gunfireT = 2.5; VN.law.reportCrime(20, scene, game.pos); })) game.gunfireT = 2.5;
     });
+    addEventListener('resize', function () { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+    document.getElementById('btn-resume').addEventListener('click', function () { game.state = 'play'; document.getElementById('pause').style.display = 'none'; });
+    document.getElementById('btn-save').addEventListener('click', function () { game.save(); VN.ui.showBanner('SAVED'); });
   }
 
-  function wireCallbacks() {
-    V.onCarCrash = function (other, speed) {
-      if (V.sound) V.sound.crash();
-      if (speed > 11) V.reportCrime(6, other.x, other.z, false);
-    };
-    V.onRobbery = function (loot) {
-      cash += loot;
-      if (V.sound) V.sound.cash();
-      V.toast('Robbed $' + loot + ' at gunpoint.');
-    };
-    V.onOfficerShoot = function (officer, dist) {
-      var hero = heroRef;
-      var tx = playerCar ? playerCar.x : hero.x;
-      var tz = playerCar ? playerCar.z : hero.z;
-      V.drawTracer(officer.x, 1.45, officer.z,
-        tx + (Math.random() - 0.5) * 2.2, 1.2, tz + (Math.random() - 0.5) * 2.2, 0x7fb8ff);
-      if (V.sound) V.sound.gunshot(true);
-      var chance = 0.4 - dist * 0.006;
-      if (Math.random() < chance) hurtPlayer(3 + Math.random() * 5);
-    };
-    V.onPoliceRam = function () { if (V.sound) V.sound.crash(); };
-    V.onMissionComplete = function (def) {
-      cash += def.cash;
-      if (V.sound) V.sound.cash();
-      V.toast(def.title + ' complete — +$' + def.cash + ', + ' + def.rep + ' REP');
-      saveGame();
-    };
-    V.onRaceComplete = function (t, pay) {
-      cash += pay;
-      if (V.sound) V.sound.cash();
-      V.toast('TIME TRIAL finished in ' + t.toFixed(1) + 's — +$' + pay +
-        (V.story.raceBest ? ' · best ' + V.story.raceBest.toFixed(1) + 's' : ''));
-      saveGame();
-    };
-    V.onThugDown = function () { cash += 25; };
-    V.onBusted = function () { endRun('busted'); };
-    V.hurtPlayer = hurtPlayer;
-  }
-
-  function hurtPlayer(dmg) {
-    if (state !== 'play') return;
-    if (playerCar) {
-      // shots and rams chew the car first
-      V.damageCar(playerCar, dmg * 0.7, playerCar.x, playerCar.z);
-      dmg *= 0.35;
-    }
-    heroRef.health -= dmg;
-    V.ui.flashDamage();
-    if (heroRef.health <= 0) endRun('wasted');
-  }
-
-  function endRun(kind) {
-    if (state !== 'play') return;
-    state = 'end';
-    endTimer = 2.8;
-    if (V.story.active) V.failMission(kind === 'busted' ? 'you were busted' : 'you were wasted');
-    var fee = kind === 'busted' ? 150 : 200;
-    cash = Math.max(0, cash - fee);
-    V.ui.showEnd(kind, kind === 'busted'
-      ? 'The law impounds your pride and $' + fee + '. Released outside St. Mirella at dawn.'
-      : 'St. Mirella patched you up — $' + fee + ' on the tab Odile pretends not to keep.');
-    if (document.exitPointerLock) document.exitPointerLock();
-  }
-
-  function respawn() {
-    V.ui.hideEnd();
-    V.clearHeat();
-    if (playerCar) {
-      playerCar.driver = 'parked';
-      playerCar = null;
-    }
-    heroRef.inCar = null;
-    heroRef.group.visible = true;
-    heroRef.x = city.hospital.spawnX;
-    heroRef.z = city.hospital.spawnZ;
-    heroRef.health = 100;
-    heroRef.group.position.set(heroRef.x, 0, heroRef.z);
-    state = 'play';
-    saveGame();
-  }
-
-  // ---------------------------------------------------------------- input
-  function wireInput() {
-    window.addEventListener('keydown', function (e) {
-      keys[e.code] = true;
-      if (state === 'play') {
-        if (e.code === 'KeyE') interact();
-        if (e.code === 'KeyR') V.startReload();
-        if (e.code === 'KeyF' && !playerCar) V.melee({});
-        if (e.code === 'KeyP') {
-          mapOpen = !mapOpen;
-          document.getElementById('bigmap').classList.toggle('hidden', !mapOpen);
-        }
-        if (e.code === 'KeyM' && V.sound) {
-          V.toast(V.sound.toggleMute() ? 'Sound off.' : 'Sound on.');
-        }
-        if (e.code === 'Escape') pauseGame();
-      } else if (state === 'pause' && e.code === 'Escape') {
-        document.getElementById('pause-screen').classList.add('hidden');
-        state = 'play';
-      }
-      if (['ArrowUp', 'ArrowDown', 'Space'].indexOf(e.code) >= 0) e.preventDefault();
-    });
-    window.addEventListener('keyup', function (e) { keys[e.code] = false; });
-    var canvas = renderer.domElement;
-    canvas.addEventListener('mousedown', function (e) {
-      if (state !== 'play') return;
-      if (e.button === 0) {
-        mouseL = true;
-        if (!playerCar && !V.story.dialogue) V.shoot(camera, {});
-      }
-      if (e.button === 2) mouseR = true;
-      if (!pointerLocked && canvas.requestPointerLock) canvas.requestPointerLock();
-    });
-    window.addEventListener('mouseup', function (e) {
-      if (e.button === 0) mouseL = false;
-      if (e.button === 2) mouseR = false;
-    });
-    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-    document.addEventListener('pointerlockchange', function () {
-      pointerLocked = document.pointerLockElement === canvas;
-    });
-    document.addEventListener('mousemove', function (e) {
-      if (state !== 'play') return;
-      if (pointerLocked) {
-        camYaw -= e.movementX * 0.0028;
-        camPitch = V.clamp(camPitch + e.movementY * 0.0022, -0.08, 1.0);
-        lastMouseMove = elapsed;
-      }
-    });
-  }
-
-  function pauseGame() {
-    if (state !== 'play') return;
-    state = 'pause';
-    var ui = V.ui.el;
-    ui.pauseStats.textContent = 'Cash $' + cash + ' · REP ' + V.story.rep +
-      ' (' + V.rankFor(V.story.rep) + ') · Missions done: ' + V.story.nextMission + '/6';
-    document.getElementById('pause-screen').classList.remove('hidden');
-    if (document.exitPointerLock) document.exitPointerLock();
-  }
-
-  // ---------------------------------------------------------------- interact
   function interact() {
-    if (V.story.dialogue) { V.advanceDialogue(); return; }
-    var hero = heroRef;
-    if (playerCar) {
-      // climb out
-      var side = 1.9;
-      hero.x = playerCar.x + Math.cos(playerCar.ry) * side;
-      hero.z = playerCar.z - Math.sin(playerCar.ry) * side;
-      var fixed = V.collideCircle(city, hero.x, hero.z, 0.55);
-      hero.x = fixed.x; hero.z = fixed.z;
-      hero.ry = playerCar.ry;
-      hero.group.position.set(hero.x, 0, hero.z);
-      hero.group.visible = true;
-      hero.inCar = null;
-      playerCar.driver = 'parked';
-      playerCar.speed = 0;
-      playerCar = null;
-      if (V.sound) V.sound.door();
+    if (game.inCar) { game.exitCar(); return; }
+    // Odile dialogue
+    if (Math.hypot(game.hero.x - 10, game.hero.z - 99.5) < 5) {
+      var m = VN.story.current();
+      if (m && !VN.story.active) { VN.ui.dialogue(m.intro, function () { VN.story.start(); }); }
+      else if (VN.story.done) VN.ui.dialogue([['Odile', 'Velmara runs on your wheels now, Jax. Races on 1, courier runs on 2.']], null);
+      else VN.ui.dialogue([['Odile', 'Finish the run first, Jax. The marker never lies.']], null);
       return;
     }
-    // talk to Odile?
-    if (V.odile && V.dist2d(hero.x, hero.z, V.odile.x, V.odile.z) < 4.2) {
-      V.talkToOdile(city);
-      return;
-    }
-    // steal / enter a car
-    var car = V.nearestCar(hero.x, hero.z, 3.6);
-    if (car && !car.dead) {
-      var wasDriver = car.driver;
-      if (wasDriver === 'traffic') {
-        V.reportCrime(9, car.x, car.z, true);
-        V.crowdPanic(car.x, car.z, 9);
-        V.toast('Dragged the driver out — the car is yours.');
-      } else if (wasDriver === 'police') {
-        V.reportCrime(14, car.x, car.z, false);
-      } else if (car.isOrphee) {
-        V.reportCrime(11, car.x, car.z, true);
-      } else {
-        V.reportCrime(4, car.x, car.z, true);
-      }
-      car.driver = 'player';
-      car.ai = null;
-      playerCar = car;
-      hero.inCar = car;
-      hero.group.visible = false;
-      if (V.sound) { V.sound.door(); V.sound.start(); }
+    var car = game.nearestCar(4.5);
+    if (car) {
+      var wasTraffic = car.traffic;
+      game.enterCar(car);
+      VN.ui.showBanner('DRIVING — ' + car.model.name);
+      if (wasTraffic || car.parked) VN.law.reportCrime(wasTraffic ? 30 : 14, scene, game.pos);
     }
   }
 
-  function interactHint() {
-    var hero = heroRef;
-    if (V.story.dialogue) return '<b>E</b> ▸ continue';
-    if (playerCar) return '<b>E</b> ▸ get out';
-    if (V.odile && V.dist2d(hero.x, hero.z, V.odile.x, V.odile.z) < 4.2) {
-      return V.story.active ? 'Odile is watching the clock…' : '<b>E</b> ▸ talk to Odile Vane';
-    }
-    var car = V.nearestCar(hero.x, hero.z, 3.6);
-    if (car && !car.dead) {
-      return car.driver === 'traffic' ? '<b>E</b> ▸ steal the car' : '<b>E</b> ▸ drive';
-    }
-    if (!V.story.active && !V.story.race &&
-        V.dist2d(hero.x, hero.z, city.raceStart.x, city.raceStart.z) < 10) {
-      return 'Drive here to start the Neon Mile time trial';
-    }
-    return '';
-  }
-
-  // ---------------------------------------------------------------- camera
-  function updateCamera(dt) {
-    var hero = heroRef;
-    if (state === 'title') {
-      var t = elapsed * 0.045;
-      camera.position.set(Math.sin(t) * 120, 40, Math.cos(t) * 120);
-      camera.lookAt(0, 6, 0);
-      return;
-    }
-    var tx, tz, ty, dist;
-    if (playerCar) {
-      tx = playerCar.x; tz = playerCar.z; ty = 1.4; dist = 10.6;
-      // ease the camera behind the car when the mouse is idle
-      if (elapsed - lastMouseMove > 1.6) {
-        var behind = playerCar.ry + Math.PI;
-        camYaw += V.angleDelta(camYaw, behind) * Math.min(1, dt * 2.6);
-        camPitch += (0.30 - camPitch) * Math.min(1, dt * 2);
-      }
-    } else {
-      tx = hero.x; tz = hero.z; ty = 1.65; dist = 6.4;
-    }
-    var cp = Math.cos(camPitch), sp = Math.sin(camPitch);
-    var cx = tx + Math.sin(camYaw) * cp * dist;
-    var cz = tz + Math.cos(camYaw) * cp * dist;
-    var cy = ty + sp * dist;
-    if (cy < 0.7) cy = 0.7;
-    camera.position.set(cx, cy, cz);
-    camera.lookAt(tx, ty + 0.4, tz);
-  }
-
-  // ---------------------------------------------------------------- loop
-  var lastNow = 0;
-  function loop(nowMs) {
+  function loop() {
     requestAnimationFrame(loop);
-    var now = nowMs / 1000;
-    var rawDt = lastNow ? (now - lastNow) : 0.016;
-    lastNow = now;
-    // clamp the frame step BOTH ways: never negative, never a teleport
-    var dt = V.clamp(rawDt, 0, 0.05);
-    elapsed += dt;
-    var hero = heroRef;
-
-    if (state === 'shot') {
-      if (V.shotTick) V.shotTick(dt, api());
-      updateRain(dt);
-      renderer.render(scene, camera);
-      return;
+    var dt = Math.min(0.05, Math.max(0.001, clock.getDelta())); // clamp both ways
+    var t = clock.elapsedTime;
+    if (VN.city && VN.city.rain) {
+      VN.city.rain.position.set(game.pos.x, 0, game.pos.z);
+      var arr = VN.city.rain.geometry.attributes.position.array;
+      for (var i = 0; i < arr.length; i += 3) { arr[i + 1] -= dt * 34; if (arr[i + 1] < 0) arr[i + 1] = 55; }
+      VN.city.rain.geometry.attributes.position.needsUpdate = true;
     }
-
-    if (state === 'title') {
-      V.updateCars(dt, city, null);
-      V.updateCrowds(dt, city);
-      updateCamera(dt);
-      updateRain(dt);
-      renderer.render(scene, camera);
-      return;
-    }
-
-    if (state === 'end') {
-      endTimer -= dt;
-      V.updateCars(dt, city, null);
-      updateRain(dt);
-      renderer.render(scene, camera);
-      if (endTimer <= 0) respawn();
-      return;
-    }
-    if (state === 'pause') {
-      renderer.render(scene, camera);
-      return;
-    }
-
-    // ---- state === 'play' ----
-    clockMinutes += dt * 1.1;
-    var dialogueOpen = !!V.story.dialogue;
-    hero.aiming = mouseR && !playerCar;
-    if (hero.rig) hero.rig.pistol.visible = hero.aiming || mouseL;
-
-    var px, pz, pSpeed;
-    if (playerCar) {
-      var input = {
-        throttle: (keys.KeyW || keys.ArrowUp) ? 1 : ((keys.KeyS || keys.ArrowDown) ? -1 : 0),
-        steer: (keys.KeyA || keys.ArrowLeft) ? 1 : ((keys.KeyD || keys.ArrowRight) ? -1 : 0),
-        brake: !!keys.Space,
-        handbrake: !!keys.Space
-      };
-      if (!dialogueOpen) V.stepPlayerCar(playerCar, dt, input, city);
-      px = playerCar.x; pz = playerCar.z;
-      pSpeed = Math.abs(playerCar.speed);
-      hero.x = px; hero.z = pz;
-      // time trial auto-start when idling at the start line with no mission
-      if (raceCooldown > 0) raceCooldown -= dt;
-      if (!V.story.active && !V.story.race && raceCooldown <= 0) {
-        if (V.startRace(city, px, pz)) raceCooldown = 5;
+    if (game.state === 'play' || game.state === 'dialogue') {
+      game.elapsed += dt; game.clockMin += dt * 1.4;
+      if (game.gunfireT > 0) game.gunfireT -= dt;
+      var heroPos = game.pos;
+      if (game.state === 'play') {
+        if (game.inCar && game.car) {
+          game.car.updateDrive(dt, keys);
+          VN.sound.engine(Math.abs(game.car.speed) / game.car.model.top);
+          if (game.car.health <= 0) { VN.ui.showBanner('VEHICLE WRECKED'); game.exitCar(); }
+        } else {
+          game.hero.update(dt, keys);
+        }
       }
-    } else {
-      var mv = {
-        x: (keys.KeyD || keys.ArrowRight) ? 1 : ((keys.KeyA || keys.ArrowLeft) ? -1 : 0),
-        z: (keys.KeyW || keys.ArrowUp) ? 1 : ((keys.KeyS || keys.ArrowDown) ? -1 : 0)
-      };
-      if (!dialogueOpen) {
-        V.updateHero(dt, mv, camYaw, !!(keys.ShiftLeft || keys.ShiftRight), city);
-      }
-      px = hero.x; pz = hero.z;
-      pSpeed = hero.speedNow || 0;
+      VN.updateTraffic(game.traffic, dt, heroPos, game.gunfireT > 0);
+      VN.updatePeds(game.peds, dt, heroPos, game.gunfireT > 0, game.aiming);
+      VN.combat.update(dt, scene, game.inCar && game.car ? game.car : game.hero, function (dmg) {
+        if (!game.inCar) { game.hero.health -= dmg; if (game.hero.health <= 0) dead('wasted'); }
+      });
+      VN.story.update(dt, heroPos, game.inCar);
+      VN.sideJobs.update(dt, heroPos);
+      var hidden = VN.law.cars.every(function (c) { return Math.hypot(c.x - heroPos.x, c.z - heroPos.z) > 70; }) && VN.law.wanted > 0;
+      VN.law.update(dt, scene, { x: heroPos.x, z: heroPos.z, speed: game.inCar && game.car ? game.car.speed : game.hero.speed }, hidden, function () { dead('busted'); });
+      VN.sound.bassline(dt);
+      // marker beam
+      var mk = game.marker;
+      if (mk) { game.beam.visible = true; game.beam.position.set(mk.x, 13, mk.z); game.beam.material.opacity = 0.22 + Math.sin(t * 3) * 0.1; }
+      else game.beam.visible = false;
+      game.updateHUDAndMap();
     }
-
-    var ctx = {
-      city: city, px: px, pz: pz, pSpeed: pSpeed,
-      inCar: !!playerCar, playerCar: playerCar,
-      aiming: hero.aiming, camera: camera
-    };
-    V.updateCars(dt, city, playerCar);
-    V.updateCrowds(dt, city);
-    if (!dialogueOpen) {
-      V.updateLaw(dt, ctx);
-      V.updateCombat(dt, ctx);
-      V.updateStory(dt, ctx);
+    // camera: orbit behind target
+    var target = game.inCar && game.car ? game.car : game.hero;
+    if (target) {
+      var dist = game.inCar ? 11.5 : 8.5, height = game.inCar ? 4.2 : 3.1;
+      var cx = target.x + Math.sin(game.camYaw) * Math.cos(game.camPitch) * dist;
+      var cz = target.z + Math.cos(game.camYaw) * Math.cos(game.camPitch) * dist;
+      var cy = height + Math.sin(game.camPitch) * dist * 0.6;
+      if (!VN.collides(cx, cz, 0.3)) { camera.position.set(cx, cy, cz); }
+      camera.lookAt(target.x, 1.6, target.z);
     }
-    if (city.water) city.water.material.opacity = 0.4 + Math.sin(elapsed * 0.8) * 0.07;
-
-    // sound follows the action
-    var nearestCop = 999;
-    for (var i = 0; i < V.cruisers.length; i++) {
-      nearestCop = Math.min(nearestCop, V.dist2d(V.cruisers[i].x, V.cruisers[i].z, px, pz));
-    }
-    if (V.sound) V.sound.update(dt, {
-      driving: !!playerCar,
-      speed: playerCar ? playerCar.speed : 0,
-      throttle: playerCar && (keys.KeyW || keys.ArrowUp) ? 1 : 0,
-      nearestCopDist: nearestCop, stars: V.law.stars, playing: true
-    });
-
-    updateCamera(dt);
-    updateRain(dt);
-
-    // HUD
-    var hint = interactHint();
-    var interactEl = V.ui.el.interact;
-    if (hint) {
-      interactEl.innerHTML = hint;
-      interactEl.classList.remove('hidden');
-    } else interactEl.classList.add('hidden');
-    V.ui.update({
-      cash: cash, rep: V.story.rep, rank: V.rankFor(V.story.rep),
-      clockMinutes: clockMinutes, health: heroRef.health,
-      busted: V.law.bustedMeter, stars: V.law.stars,
-      inCar: !!playerCar,
-      carSpeed: playerCar ? playerCar.speed : 0,
-      carName: playerCar ? playerCar.kind.toUpperCase() + (playerCar.isOrphee ? ' GT' : '') : '',
-      carHealth: playerCar ? playerCar.health : 100,
-      ammo: V.gun.ammo, reserve: V.gun.reserve, reloading: V.gun.reloading > 0,
-      px: px, pz: pz, ry: playerCar ? playerCar.ry : hero.ry,
-      city: city, playing: true, mapOpen: mapOpen, dt: dt
-    }, nowMs);
-
     renderer.render(scene, camera);
   }
-
-  // A small, honest debug surface the automated input probe uses.
-  V.debug = {
-    state: function () { return state; },
-    startNewGame: startNewGame,
-    teleport: function (x, z) {
-      heroRef.x = x; heroRef.z = z;
-      heroRef.group.position.set(x, 0, z);
-    },
-    playerCar: function () { return playerCar; },
-    cash: function () { return cash; }
+  function dead(kind) {
+    game.state = 'dead';
+    var el = document.getElementById('dead');
+    el.style.display = 'flex';
+    document.getElementById('dead-title').textContent = kind === 'busted' ? 'BUSTED' : 'WASTED';
+    setTimeout(function () { game.respawn(kind); }, shot ? 99999 : 1600);
+  }
+  game._dead = dead;
+  VN.gameRef = game;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  // test / probe surface
+  VN.__VN = {
+    game: game, keys: keys,
+    counts: function () {
+      var objs = 0; scene.traverse(function () { objs++; });
+      return { buildings: VN.city.buildings.length, streetlights: VN.city.lights.length, cars: game.traffic.length + game.parked.length, peds: game.peds.length, drawObjects: objs, rendererCalls: renderer.info.render.calls };
+    }
   };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else boot();
 })();

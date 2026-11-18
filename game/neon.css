@@ -1,121 +1,43 @@
-/* neon.css — Velmara Nights HUD and menus.
-   Wet asphalt blacks, harbour teal, and the two neons that own the night:
-   Neon Mile pink and getaway gold. Everything is DOM over the WebGL canvas
-   so the HUD stays crisp at any resolution. */
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100%; height: 100%; overflow: hidden; background: #05060a; }
-body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: #e8ecf4; }
-#stage, #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.hidden { display: none !important; }
-
-/* ---------- HUD ---------- */
-#hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
-#hud-topleft { position: absolute; top: 16px; left: 18px; text-shadow: 0 2px 6px #000; }
-#hud-cash { font-size: 30px; font-weight: 800; color: #7dff9a; letter-spacing: 0.5px; }
-#hud-rep { font-size: 13px; font-weight: 700; color: #ffd34d; letter-spacing: 1.2px; margin-top: 2px; }
-#hud-clock { font-size: 13px; color: #a8c8e8; letter-spacing: 2px; margin-top: 2px; }
-#health-wrap { position: relative; width: 190px; height: 15px; background: rgba(8,10,16,0.72);
-  border: 1px solid rgba(255,255,255,0.35); margin-top: 9px; border-radius: 3px; overflow: hidden; }
-#health-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #d93b4e, #ff7a5e); transition: width 0.2s; }
-#health-wrap span { position: absolute; left: 6px; top: 0; font-size: 10px; font-weight: 800; letter-spacing: 2px; color: #fff; line-height: 15px; }
-#busted-wrap { margin-top: 6px; width: 190px; }
-#busted-wrap label { font-size: 10px; font-weight: 800; letter-spacing: 3px; color: #ff5f6e; }
-#busted-track { height: 8px; background: rgba(8,10,16,0.72); border: 1px solid rgba(255,95,110,0.6); border-radius: 3px; overflow: hidden; }
-#busted-fill { height: 100%; width: 0%; background: #ff5f6e; }
-
-#hud-stars { position: absolute; top: 14px; right: 20px; font-size: 30px; letter-spacing: 4px; text-shadow: 0 2px 8px #000; }
-#hud-stars .on { color: #ffd34d; }
-#hud-stars .off { color: rgba(255,255,255,0.18); }
-#hud-stars .hot .on { color: #ff5f6e; }
-
-#objective { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-  background: rgba(8,10,18,0.78); border: 1px solid rgba(255,211,77,0.55); border-left: 5px solid #ffd34d;
-  padding: 8px 18px 9px; border-radius: 4px; text-align: center; max-width: 520px; }
-#obj-title { font-size: 9px; font-weight: 800; letter-spacing: 4px; color: #ffd34d; }
-#obj-label { font-size: 16px; font-weight: 700; color: #fff; margin-top: 2px; }
-#obj-meta { font-size: 12px; color: #a8c8e8; margin-top: 2px; letter-spacing: 1px; }
-#obj-timer { color: #ff9a5e; font-weight: 800; margin-left: 12px; }
-
-#minimap-wrap { position: absolute; left: 18px; bottom: 18px; width: 184px; height: 184px;
-  border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); overflow: hidden;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.65); background: #0a0e16; }
-#minimap { width: 184px; height: 184px; }
-#minimap-label { position: absolute; bottom: 12px; width: 100%; text-align: center;
-  font-size: 9px; font-weight: 800; letter-spacing: 3px; color: rgba(255,255,255,0.75); }
-
-#hud-car { position: absolute; right: 22px; bottom: 20px; text-align: right; text-shadow: 0 2px 6px #000; }
-#hud-speed { font-size: 46px; font-weight: 800; color: #fff; line-height: 0.9; }
-#hud-speed-unit { font-size: 11px; letter-spacing: 3px; color: #a8c8e8; }
-#hud-car-name { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: #ffd34d; margin-top: 3px; }
-#car-health-track { width: 150px; height: 7px; background: rgba(8,10,16,0.7); border: 1px solid rgba(255,255,255,0.3);
-  margin: 5px 0 0 auto; border-radius: 3px; overflow: hidden; }
-#car-health-fill { height: 100%; width: 100%; background: #7fb8ff; }
-
-#hud-ammo { position: absolute; right: 22px; bottom: 118px; font-size: 24px; font-weight: 800; color: #fff; text-shadow: 0 2px 6px #000; }
-#hud-ammo small { color: #8fa3bd; font-size: 16px; }
-#hud-ammo .reloading { color: #ff9a5e; }
-
-#interact { position: absolute; left: 50%; bottom: 148px; transform: translateX(-50%);
-  background: rgba(8,10,18,0.85); border: 1px solid rgba(95,242,200,0.6); color: #c8fff2;
-  padding: 7px 16px; border-radius: 20px; font-size: 14px; font-weight: 700; letter-spacing: 0.4px; }
-#interact b { color: #5ff2c8; }
-
-#crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  font-size: 26px; font-weight: 300; color: rgba(255,255,255,0.9); text-shadow: 0 0 6px #000; }
-
-#toast { position: absolute; left: 50%; top: 108px; transform: translateX(-50%);
-  background: rgba(10,8,20,0.88); border: 1px solid rgba(255,95,200,0.65); color: #ffd7f2;
-  padding: 10px 22px; border-radius: 4px; font-size: 15px; font-weight: 700; letter-spacing: 0.6px;
-  text-align: center; max-width: 640px; }
-
-#dialogue { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); width: 680px; max-width: 92vw;
-  background: linear-gradient(180deg, rgba(14,10,24,0.94), rgba(8,8,16,0.94));
-  border: 1px solid rgba(255,95,200,0.5); border-radius: 6px; padding: 14px 20px 10px; pointer-events: none; }
-#dlg-who { font-size: 12px; font-weight: 800; letter-spacing: 2.5px; color: #ff5fc8; text-transform: uppercase; }
-#dlg-text { font-size: 17px; line-height: 1.45; color: #f2ecf8; margin-top: 4px; min-height: 48px; }
-#dlg-hint { text-align: right; font-size: 11px; color: #8fa3bd; letter-spacing: 1px; margin-top: 4px; }
-
-#damage-flash { position: absolute; inset: 0; pointer-events: none; z-index: 6;
-  background: radial-gradient(ellipse at center, transparent 55%, rgba(217,30,40,0.55) 100%); opacity: 0; }
-
-/* ---------- full map ---------- */
-#bigmap { position: absolute; inset: 0; z-index: 8; background: rgba(3,4,8,0.82);
-  display: flex; align-items: center; justify-content: center; }
-#bigmap-frame { background: #0a0e16; border: 1px solid rgba(95,242,200,0.5); border-radius: 8px; padding: 14px 16px 10px; }
-#bigmap-title { font-size: 13px; font-weight: 800; letter-spacing: 4px; color: #5ff2c8; margin-bottom: 8px; }
-#bigmap-legend { font-size: 12px; color: #a8c8e8; margin-top: 8px; text-align: center; }
-.lg-gold { color: #ffd34d; } .lg-pink { color: #ff5fc8; } .lg-blue { color: #6ea8ff; }
-
-/* ---------- title / pause / end ---------- */
-#title-screen { position: absolute; inset: 0; z-index: 10;
-  background: linear-gradient(180deg, rgba(5,4,12,0.55) 0%, rgba(5,4,12,0.88) 78%);
-  display: flex; align-items: center; justify-content: center; }
-#title-inner { text-align: center; max-width: 760px; padding: 20px; }
-#title-kicker { font-size: 11px; font-weight: 800; letter-spacing: 4px; color: #5ff2c8; }
-#title-logo { font-size: 84px; font-weight: 900; letter-spacing: 2px; color: #fff; margin: 10px 0 4px;
-  text-shadow: 0 0 34px rgba(255,95,200,0.55), 0 4px 0 #1a0b26; }
-#title-logo span { color: #ff5fc8; }
-#title-sub { font-size: 16px; line-height: 1.55; color: #c9d4e8; max-width: 600px; margin: 8px auto 22px; }
-#title-buttons { display: flex; gap: 14px; justify-content: center; }
-.big-btn { pointer-events: auto; cursor: pointer; font-family: inherit; font-size: 16px; font-weight: 800;
-  letter-spacing: 2px; color: #12060f; background: linear-gradient(180deg, #ff7fd4, #e83aa8);
-  border: none; border-radius: 4px; padding: 13px 34px; box-shadow: 0 6px 22px rgba(232,58,168,0.4); }
-.big-btn:hover { filter: brightness(1.12); }
-.big-btn.ghost { background: rgba(16,20,32,0.9); color: #c9d4e8; border: 1px solid rgba(255,255,255,0.35); box-shadow: none; }
-.big-btn:disabled { opacity: 0.35; cursor: default; filter: none; }
-#title-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 30px; margin: 26px auto 0;
-  max-width: 620px; text-align: left; font-size: 13px; color: #8fa3bd; }
-#title-controls b { color: #e8ecf4; }
-
-#pause-screen { position: absolute; inset: 0; z-index: 9; background: rgba(3,4,8,0.78);
-  display: flex; align-items: center; justify-content: center; }
-#pause-screen .panel { text-align: center; background: #0c0f18; border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 8px; padding: 30px 44px; display: flex; flex-direction: column; gap: 12px; }
-#pause-screen h2 { letter-spacing: 6px; font-size: 26px; }
-#pause-stats { color: #a8c8e8; font-size: 14px; margin-bottom: 6px; }
-
-#end-screen { position: absolute; inset: 0; z-index: 9; background: rgba(10,2,4,0.72);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; }
-#end-title { font-size: 92px; font-weight: 900; letter-spacing: 10px; color: #ff3b4e; text-shadow: 0 0 44px rgba(255,40,60,0.6); }
-#end-title.busted { color: #6ea8ff; text-shadow: 0 0 44px rgba(80,140,255,0.6); }
-#end-sub { font-size: 17px; color: #e8ecf4; margin-top: 8px; }
+/* neon.css — wet-street neon UI for VELMARA NIGHTS */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; overflow: hidden; background: #070a14; font-family: 'Segoe UI', Arial, sans-serif; color: #e8f2ff; }
+#app, #app canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#title, #pause, #dead { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 30; }
+#title { background: radial-gradient(ellipse at 50% 78%, rgba(255,79,216,.20), transparent 55%), radial-gradient(ellipse at 50% 0%, rgba(55,242,255,.12), transparent 60%), linear-gradient(180deg, rgba(5,6,18,.88), rgba(10,8,28,.94)); }
+#pause { background: rgba(4,6,16,.82); z-index: 40; }
+#dead { background: rgba(60,0,10,.45); z-index: 45; }
+#dead h2 { font-size: 84px; letter-spacing: 14px; color: #ff3355; text-shadow: 0 0 34px #ff3355; margin: 0; }
+.title-inner { text-align: center; max-width: 760px; padding: 30px; }
+.title-inner h1 { font-size: 76px; margin: 0 0 6px; letter-spacing: 6px; color: #fff; text-shadow: 0 0 26px #37f2ff, 0 4px 0 #123; }
+.title-inner h1 span { color: #ff4fd8; text-shadow: 0 0 30px #ff4fd8; }
+.title-inner h2 { font-size: 44px; letter-spacing: 8px; }
+.tag { font-size: 19px; color: #bfe3ff; margin: 4px 0 26px; }
+button { display: block; margin: 12px auto; min-width: 280px; padding: 14px 26px; font-size: 19px; font-weight: 700; letter-spacing: 3px; color: #0a0e1c; background: linear-gradient(90deg, #37f2ff, #ff4fd8); border: 0; border-radius: 6px; cursor: pointer; box-shadow: 0 0 22px rgba(255,79,216,.45); }
+button:hover { filter: brightness(1.15); }
+.controls { font-size: 13.5px; line-height: 1.7; color: #8fb4d8; margin-top: 24px; }
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
+#topbar { position: absolute; top: 14px; left: 18px; display: flex; gap: 18px; align-items: baseline; text-shadow: 0 2px 6px #000; }
+#cash { font-size: 30px; font-weight: 800; color: #7dff9a; }
+#rep { font-size: 15px; font-weight: 700; color: #ffd24f; letter-spacing: 1px; }
+#clock { font-size: 17px; color: #bfe3ff; }
+#district { font-size: 14px; letter-spacing: 3px; color: #ff9ae4; }
+#muted { font-size: 13px; color: #aaa; }
+#stars { position: absolute; top: 12px; right: 20px; font-size: 30px; color: #667; text-shadow: 0 2px 8px #000; }
+#healthwrap { position: absolute; top: 58px; left: 18px; width: 210px; height: 13px; background: rgba(0,0,0,.55); border: 1px solid #456; border-radius: 4px; }
+#healthfill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff3355, #ff9a3f); border-radius: 4px; }
+#bustedwrap { position: absolute; top: 82px; left: 18px; width: 210px; }
+#bustedwrap label { font-size: 12px; letter-spacing: 3px; color: #7fb2ff; }
+#bustedbar { height: 10px; background: rgba(0,0,0,.55); border: 1px solid #345; border-radius: 4px; }
+#bustedfill { height: 100%; width: 0; background: #3377ff; }
+#banner { position: absolute; top: 15%; width: 100%; text-align: center; font-size: 37px; font-weight: 800; letter-spacing: 5px; color: #ffe14f; text-shadow: 0 0 24px rgba(255,225,79,.8), 0 3px 8px #000; opacity: 0; transition: opacity .4s; }
+#objective-wrap { position: absolute; bottom: 128px; left: 50%; transform: translateX(-50%); text-align: center; background: rgba(4,8,18,.62); padding: 8px 20px; border-radius: 8px; border: 1px solid rgba(55,242,255,.35); max-width: 72%; }
+#objective { font-size: 17.5px; font-weight: 600; color: #eaf6ff; }
+#dist { font-size: 14px; color: #ffe14f; font-weight: 700; margin-top: 2px; }
+#speed { position: absolute; right: 22px; bottom: 108px; font-size: 21px; font-weight: 700; color: #bfe3ff; text-shadow: 0 2px 6px #000; }
+#ammo { position: absolute; right: 22px; bottom: 78px; font-size: 16px; font-weight: 700; color: #ffd24f; text-shadow: 0 2px 6px #000; }
+#minimap { position: absolute; right: 18px; bottom: 140px; width: 176px; height: 176px; }
+#fullmap { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 35; border: 2px solid #ff4fd8; border-radius: 10px; box-shadow: 0 0 44px rgba(255,79,216,.5); }
+#dialogue { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); width: min(680px, 86%); background: rgba(5,8,20,.88); border: 1px solid #ff4fd8; border-radius: 10px; padding: 14px 20px 10px; pointer-events: none; }
+#dlg-name { color: #ff4fd8; font-weight: 800; letter-spacing: 2px; font-size: 15px; }
+#dlg-text { font-size: 18.5px; line-height: 1.45; margin-top: 4px; }
+.dlg-hint { font-size: 12px; color: #8fb4d8; margin-top: 6px; text-align: right; }
