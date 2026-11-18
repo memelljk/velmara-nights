@@ -89,6 +89,7 @@ window.VN = window.VN || {};
     var moon = new THREE.DirectionalLight(0xaac4ff, 0.75); moon.position.set(80, 160, -60); scene.add(moon);
     var neonGlow = new THREE.PointLight(0xff4fd8, 1.1, 130); neonGlow.position.set(30, 16, 140); scene.add(neonGlow);
     var harborGlow = new THREE.PointLight(0x37f2ff, 0.9, 150); harborGlow.position.set(180, 18, 280); scene.add(harborGlow);
+    game.scene = scene;
     VN.buildCity(scene, seed);
     var rnd = VN.mulberry(seed * 31 + 5);
     game.hero = VN.makeHero(); scene.add(game.hero.mesh);
