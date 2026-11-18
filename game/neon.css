@@ -13,7 +13,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1020; fon
 #healthWrap { position: absolute; top: 74px; left: 14px; width: 190px; height: 10px; background: rgba(8,12,20,0.72); border: 1px solid rgba(255,255,255,0.25); border-radius: 5px; overflow: hidden; }
 #healthFill { height: 100%; width: 100%; background: #53d769; transition: width 0.25s; }
 
-#objective { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); min-width: 340px; max-width: 560px; text-align: center; background: rgba(8, 12, 20, 0.78); border: 1px solid rgba(255, 214, 10, 0.55); border-radius: 10px; padding: 8px 18px 9px; }
+#objective { position: absolute; top: 88px; left: 50%; transform: translateX(-50%); min-width: 340px; max-width: 560px; text-align: center; background: rgba(8, 12, 20, 0.78); border: 1px solid rgba(255, 214, 10, 0.55); border-radius: 10px; padding: 8px 18px 9px; }
 #objTitle { color: #ffd60a; font-weight: 800; letter-spacing: 2.5px; font-size: 15px; }
 #objText { font-size: 14px; margin-top: 2px; }
 #objMeta { color: #9fd8ff; font-size: 13px; font-weight: 700; margin-top: 1px; }

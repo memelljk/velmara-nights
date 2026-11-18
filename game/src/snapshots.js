@@ -53,12 +53,11 @@ VN.SHOTS = {
     } else if (name === 'chase') {
       // Player coupe at speed; the camera waits AHEAD of the car, looking
       // back down the lane, so all four cruisers sit in frame behind it.
-      const coupe = findCar('coupe', true);
+      const coupe = G.cars.find(c => c.model === 'coupe' && c.color === 0xd86a3c) || findCar('coupe', true);
       drivePose(coupe, 46, -56.4, -Math.PI / 2, 26);
-      coupe.color = 0xd8b13c;
       for (let i = 0; i < 4; i++) {
         const cruiser = new VN.Car(
-          { x: 34 - i * 10.5, z: -56.4 + (i % 2) * 1.4, heading: -Math.PI / 2, model: 'cruiser', color: 0x232a38 },
+          { x: 37 - i * 7.2, z: -56.4 + (i % 2) * 1.6, heading: -Math.PI / 2, model: 'cruiser', color: 0x232a38 },
           { police: true }
         );
         cruiser.driver = 'cop';
@@ -104,7 +103,7 @@ VN.SHOTS = {
       const oncoming = findCar('sedan', false);
       oncoming.x = 224; oncoming.z = 176.4; oncoming.heading = Math.PI / 2; oncoming.speed = 10; oncoming.syncMesh();
       mission(1, 0, { timer: 95.6 });
-      cam(185 - 12.5, 4.6, 183.6 - 3.5, 205, 2.2, 186);
+      cam(171, 5.4, 175.5, 202, 2.0, 185.5);
     }
     // One HUD refresh with the posed numbers (minimap included).
     ui.update(0);

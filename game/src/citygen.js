@@ -255,7 +255,7 @@ VN.CITY = (function () {
 
     const contColors = [0xa03c30, 0x2e6a8a, 0x3f8a4f, 0xb07828, 0x5e5e9e, 0x8a8a92];
     let contN = 0;
-    for (let cx = 168; cx <= 292; cx += 13.5) for (let cz = 116; cz <= 196; cz += 10) {
+    for (let cx = 168; cx <= 292; cx += 13.5) for (const cz of [116, 126, 136, 146, 156, 166, 206]) {
       if (rng() < 0.3) continue;
       const levels = rng() < 0.4 ? 2 : 1;
       for (let lv = 0; lv < levels; lv++) {
