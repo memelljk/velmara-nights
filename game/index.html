@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Velmara Nights — an open-world crime story</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23120a1c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23ff5fc8' font-family='Arial' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="neon.css">
+</head>
+<body>
+<div id="stage"></div>
+
+<!-- ======================= HUD ======================= -->
+<div id="hud" class="hidden">
+  <div id="hud-topleft">
+    <div id="hud-cash">$0</div>
+    <div id="hud-rep">REP 0 · <span id="hud-rank">Runner</span></div>
+    <div id="hud-clock">21:00</div>
+    <div id="health-wrap"><div id="health-fill"></div><span>Jax</span></div>
+    <div id="busted-wrap" class="hidden"><label>BUSTED</label><div id="busted-track"><div id="busted-fill"></div></div></div>
+  </div>
+  <div id="hud-stars"></div>
+  <div id="objective" class="hidden">
+    <div id="obj-title">OBJECTIVE</div>
+    <div id="obj-label"></div>
+    <div id="obj-meta"><span id="obj-dist"></span><span id="obj-timer"></span></div>
+  </div>
+  <div id="minimap-wrap">
+    <canvas id="minimap" width="184" height="184"></canvas>
+    <div id="minimap-label">VELMARA</div>
+  </div>
+  <div id="hud-car" class="hidden">
+    <div id="hud-speed">0</div>
+    <div id="hud-speed-unit">km/h</div>
+    <div id="hud-car-name"></div>
+    <div id="car-health-track"><div id="car-health-fill"></div></div>
+  </div>
+  <div id="hud-ammo" class="hidden"><span id="ammo-mag">12</span><small> / </small><span id="ammo-res">96</span></div>
+  <div id="interact" class="hidden"></div>
+  <div id="crosshair" class="hidden">+</div>
+  <div id="toast" class="hidden"></div>
+  <div id="dialogue" class="hidden">
+    <div id="dlg-who"></div>
+    <div id="dlg-text"></div>
+    <div id="dlg-hint">E ▸ continue</div>
+  </div>
+</div>
+<div id="damage-flash"></div>
+
+<!-- ======================= full map ======================= -->
+<div id="bigmap" class="hidden">
+  <div id="bigmap-frame">
+    <div id="bigmap-title">VELMARA — CITY MAP</div>
+    <canvas id="mapcanvas" width="620" height="620"></canvas>
+    <div id="bigmap-legend">▲ you &nbsp;·&nbsp; <span class="lg-gold">◆ objective</span> &nbsp;·&nbsp; <span class="lg-pink">● Odile Vane</span> &nbsp;·&nbsp; <span class="lg-blue">● police</span> &nbsp;·&nbsp; P closes the map</div>
+  </div>
+</div>
+
+<!-- ======================= title ======================= -->
+<div id="title-screen">
+  <div id="title-inner">
+    <div id="title-kicker">A RAIN-SOAKED PORT CITY · ONE DRIVER · EVERY BADGE IN TOWN</div>
+    <h1 id="title-logo">VELMARA <span>NIGHTS</span></h1>
+    <p id="title-sub">Jax Rook owes the wrong people. Odile Vane has the work that pays.
+      Steal, run, shoot and disappear across five neon districts — if the law lets you.</p>
+    <div id="title-buttons">
+      <button id="btn-new" class="big-btn">NEW GAME</button>
+      <button id="btn-continue" class="big-btn ghost">CONTINUE</button>
+    </div>
+    <div id="title-controls">
+      <div><b>W A S D</b> move / drive</div><div><b>Mouse</b> camera · <b>LMB</b> shoot · <b>RMB</b> aim</div>
+      <div><b>E</b> enter car / talk / steal</div><div><b>Shift</b> run · <b>Space</b> handbrake</div>
+      <div><b>R</b> reload · <b>F</b> melee · <b>P</b> city map</div><div><b>Esc</b> pause · <b>M</b> mute</div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= pause ======================= -->
+<div id="pause-screen" class="hidden">
+  <div class="panel">
+    <h2>PAUSED</h2>
+    <p id="pause-stats"></p>
+    <button id="btn-resume" class="big-btn">RESUME</button>
+    <button id="btn-save" class="big-btn ghost">SAVE GAME</button>
+    <button id="btn-restart" class="big-btn ghost">RESTART STORY</button>
+  </div>
+</div>
+
+<!-- ======================= wasted / busted ======================= -->
+<div id="end-screen" class="hidden">
+  <div id="end-title">WASTED</div>
+  <div id="end-sub"></div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="src/geomerge.js"></script>
+<script src="src/citygen.js"></script>
+<script src="src/avatar.js"></script>
+<script src="src/drive.js"></script>
+<script src="src/crowds.js"></script>
+<script src="src/law.js"></script>
+<script src="src/combat.js"></script>
+<script src="src/story.js"></script>
+<script src="src/soundlab.js"></script>
+<script src="src/interface.js"></script>
+<script src="src/snapshots.js"></script>
+<script src="src/play.js"></script>
+</body>
+</html>
