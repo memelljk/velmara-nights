@@ -90,7 +90,7 @@ window.V = window.V || {};
         ],
         steps: [
           { type: 'stealOrphee', label: 'Steal the indigo Orphee GT' },
-          { type: 'goto', x: 168, z: -120, r: 9, label: 'Deliver the GT to the Heights drop', inCarKind: 'orphee' }
+          { type: 'goto', x: 150, z: -120, r: 9, label: 'Deliver the GT to the Heights drop', inCarKind: 'orphee' }
         ],
         outro: [
           { who: 'Odile Vane', text: 'Not a scratch. The buyer cried a little. Happy tears pay full price.' }
@@ -231,7 +231,7 @@ window.V = window.V || {};
       { x: 96, z: 250, name: 'the quay' },
       { x: 150, z: -138, name: 'St. Mirella' },
       { x: -233, z: 60, name: 'the Neon Mile' },
-      { x: 168, z: -120, name: 'the Heights drop' }
+      { x: 150, z: -120, name: 'the Heights drop' }
     ];
     var a = spots[(rng() * spots.length) | 0];
     var b = spots[(rng() * spots.length) | 0];

@@ -229,7 +229,7 @@ window.V = window.V || {};
           city.buildings.push({ x: bx, z: bz, w: bw, d: bd, h: bh, district: district });
           city.colliders.push({ minX: bx - bw / 2 - 0.4, maxX: bx + bw / 2 + 0.4, minZ: bz - bd / 2 - 0.4, maxZ: bz + bd / 2 + 0.4 });
           if (district === 'Neon Mile' && ix === 0 && p < 3) {
-            signSpots.push({ x: bx + bw / 2 + 0.3, y: bh * (0.45 + rng() * 0.3), z: bz, ry: Math.PI / 2, w: Math.min(20, bd + 4) });
+            signSpots.push({ x: bx - bw / 2 - 0.3, y: bh * (0.45 + rng() * 0.3), z: bz, ry: -Math.PI / 2, w: Math.min(20, bd + 4) });
           }
         }
       }
@@ -299,7 +299,7 @@ window.V = window.V || {};
     }
     // harbour piers reaching into the water
     [0, 96, 192].forEach(function (pxx) {
-      propBatch.box(14, 1.1, 62, pxx, 0.55, QUAY_Z + 30, 0, 0x3d414c, null);
+      propBatch.box(14, 0.3, 62, pxx, 0.15, QUAY_Z + 30, 0, 0x3d414c, null);
       for (var b = 0; b < 5; b++) propBatch.box(0.8, 1.6, 0.8, pxx - 6, 0.8, QUAY_Z + 6 + b * 13, 0, 0x2c2f38, null);
     });
     // two dock cranes
@@ -351,11 +351,11 @@ window.V = window.V || {};
       city.signs.push({ text: text, x: x, z: z });
       return sign;
     }
-    fixedSign('ORPHEE MOTORS', '#8f9fff', '#0a0c1c', -225.4, 9, -120, Math.PI / 2, 22);
-    fixedSign('TATTOO', '#ff6e5e', '#180806', 78, 6.5, 226.6, Math.PI, 15);
+    fixedSign('ORPHEE MOTORS', '#8f9fff', '#0a0c1c', -225.4, 9, -120, -Math.PI / 2, 22);
+    fixedSign('TATTOO', '#ff6e5e', '#180806', 78, 6.5, 226.6, 0, 15);
     fixedSign('ST MIRELLA', '#a8ffd8', '#061410', 156.6, 12, -168, -Math.PI / 2, 20);
     fixedSign('DOCK NINE', '#ffd489', '#141006', 96, 7.5, 258, Math.PI, 18);
-    fixedSign('PAWN & CO', '#ffe95e', '#141200', -225.4, 7, 40, Math.PI / 2, 16);
+    fixedSign('PAWN & CO', '#ffe95e', '#141200', -225.4, 7, 40, -Math.PI / 2, 16);
 
     // ---- named places -----------------------------------------------------
     city.odileBooth = { x: -221, z: -48 };
@@ -369,7 +369,7 @@ window.V = window.V || {};
 
     city.hospital = { x: 150, z: -150, spawnX: 138, spawnZ: -138 };
     city.orpheeLot = { x: -233, z: -120 };          // the indigo Orphee GT waits here
-    city.vault = { x: 168, z: 216 };                // harbour vault warehouse door
+    city.vault = { x: 150, z: 255 };                // harbour vault door, on the quay apron
     city.dockNine = { x: 96, z: 296 };              // end of the middle pier
     city.marketPickup = { x: stallSpots[3].x, z: stallSpots[3].z + 4 };
     city.raceStart = { x: -240, z: 168 };
