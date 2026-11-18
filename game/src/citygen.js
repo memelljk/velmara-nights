@@ -65,12 +65,16 @@ VN.buildCity = function (scene, seed) {
     boxes.push({ w: w, h: h, d: d, x: x, y: h / 2, z: z, color: col });
     boxes.push({ w: w + 1, h: 1.2, d: d + 1, x: x, y: h + 0.4, z: z, color: 0x171a1f });
     // lit windows on two faces, emissive scaled by building size
-    var floors = Math.max(2, Math.floor(h / 5)), cols = Math.max(2, Math.floor(w / 4));
+    var floors = Math.max(2, Math.floor(h / 5)), cols = Math.max(2, Math.floor(w / 4)), colsD = Math.max(2, Math.floor(d / 4));
     for (var f = 0; f < floors; f++) for (var k = 0; k < cols; k++) {
       if (rnd() < 0.42) continue;
       var warm = rnd() < 0.7;
       windows.push({ w: 1.5, h: 1.9, x: x - w / 2 + 2 + k * 3.6, y: 3 + f * 4.6, z: z + d / 2 + 0.06, rotY: 0, color: warm ? 0xffc873 : 0x7fd8ff });
-      if (rnd() < 0.6) windows.push({ w: 1.5, h: 1.9, x: x + w / 2 + 0.06, y: 3 + f * 4.6, z: z - d / 2 + 2 + k * 3.6, rotY: Math.PI / 2, color: warm ? 0xffb85e : 0x9fe0ff });
+    }
+    for (var f2 = 0; f2 < floors; f2++) for (var k2 = 0; k2 < colsD; k2++) {
+      if (rnd() < 0.55) continue;
+      var warm2 = rnd() < 0.7;
+      windows.push({ w: 1.5, h: 1.9, x: x + w / 2 + 0.06, y: 3 + f2 * 4.6, z: z - d / 2 + 2 + k2 * 3.6, rotY: Math.PI / 2, color: warm2 ? 0xffb85e : 0x9fe0ff });
     }
   }
   scene.add(VN.mergeBoxes(boxes, {}));

@@ -55,8 +55,7 @@ VN.mergePlanes = function (list, mat) {
       col.push(c.r, c.g, c.b);
     });
     var n = pos.length / 3 - 4;
-    idx.push(n, n + 1, n + 2, n, n + 2, n + 3);
-    idx.push(n, n + 2, n + 1, n, n + 3, n + 2, n); // double-sided look
+    idx.push(n, n + 1, n + 2, n, n + 2, n + 3); // material is DoubleSide — one set is enough
   });
   var g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -112,7 +111,7 @@ VN.carMeshes = function (bodyColor, opts) {
   var lampMesh = VN.mergeBoxes(lamps, { material: lampMat });
   group.add(lampMesh);
   // headlight cones: faint, fog-free, front side only (proven fix)
-  var coneMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.04, fog: false, side: THREE.FrontSide, depthWrite: false });
+  var coneMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.05, fog: false, side: THREE.FrontSide, depthWrite: false, blending: THREE.AdditiveBlending });
   [-0.55, 0.55].forEach(function (lx) {
     var cone = new THREE.Mesh(new THREE.ConeGeometry(1.15, 7, 10, 1, true), coneMat);
     cone.rotation.x = Math.PI / 2;

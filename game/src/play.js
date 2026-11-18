@@ -109,7 +109,7 @@ window.VN = window.VN || {};
     bindInput();
     document.getElementById('btn-new').addEventListener('click', function () { try { localStorage.removeItem('velmara-save'); } catch (e) {} VN.story.idx = 0; game.cash = 120; game.rep = 0; game.startGame(false); });
     document.getElementById('btn-continue').addEventListener('click', function () { game.loadSave(); game.startGame(false); });
-    if (shot) { VN.applyShot(shot); }
+    if (shot) { game.frozen = true; VN.applyShot(shot); }
     requestAnimationFrame(loop);
     VN.__ready = true;
   }
@@ -183,7 +183,7 @@ window.VN = window.VN || {};
       for (var i = 0; i < arr.length; i += 3) { arr[i + 1] -= dt * 34; if (arr[i + 1] < 0) arr[i + 1] = 55; }
       VN.city.rain.geometry.attributes.position.needsUpdate = true;
     }
-    if (game.state === 'play' || game.state === 'dialogue') {
+    if ((game.state === 'play' || game.state === 'dialogue') && !game.frozen) {
       game.elapsed += dt; game.clockMin += dt * 1.4;
       if (game.gunfireT > 0) game.gunfireT -= dt;
       var heroPos = game.pos;
