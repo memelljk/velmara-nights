@@ -3,17 +3,84 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
-<style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-</style>
+<title>Velmara Nights — a neon port-city crime game</title>
+<link rel="stylesheet" href="./neon.css">
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
-<script type="module" src="./src/main.js"></script>
+<canvas id="view3d" aria-label="Velmara Nights: third-person open-world crime game. Drive and walk with W A S D, mouse to look, E to enter cars, click to shoot."></canvas>
+
+<div id="hud" class="hidden">
+  <div id="hudTopLeft">
+    <div id="hudCash">$0</div>
+    <div id="hudRep">REP 0 · ROOK</div>
+    <div id="hudClock">21:00</div>
+  </div>
+  <div id="hudStars" aria-label="wanted level"></div>
+  <div id="hudObjective"></div>
+  <div id="hudBanner" class="hidden"></div>
+  <div id="hudBottomLeft">
+    <canvas id="minimap" width="196" height="196"></canvas>
+    <div id="hudHealthWrap"><div id="hudHealth"></div><span id="hudHealthText">HEALTH</span></div>
+    <div id="hudBustWrap" class="hidden"><div id="hudBust"></div><span>BUSTED…</span></div>
+  </div>
+  <div id="hudBottomRight">
+    <div id="hudSpeed"></div>
+    <div id="hudAmmo"></div>
+    <div id="hudCarName"></div>
+  </div>
+  <div id="hudPrompt" class="hidden"></div>
+  <div id="hudDialogue" class="hidden">
+    <div id="dlgName"></div>
+    <div id="dlgText"></div>
+    <div id="dlgHint">click / E — next</div>
+  </div>
+  <div id="hudToast" class="hidden"></div>
+  <div id="crosshair" class="hidden"></div>
+  <div id="damageVignette"></div>
+</div>
+
+<div id="bigMap" class="hidden">
+  <div id="bigMapTitle">VELMARA — CITY MAP <span>(P or Esc to close)</span></div>
+  <canvas id="bigMapCanvas" width="760" height="760"></canvas>
+  <div id="bigMapLegend">▲ you · ● police · ◆ objective · districts: Neon Mile / Harbor / Old Market / The Heights / Dockyards</div>
+</div>
+
+<div id="titleScreen">
+  <div id="titleArt">
+    <div id="gameLogo">VELMARA<span>NIGHTS</span></div>
+    <div id="tagline">Rain. Neon. One driver for hire.</div>
+  </div>
+  <div id="titleMenu">
+    <button id="btnNewGame" type="button">NEW GAME</button>
+    <button id="btnContinue" type="button">CONTINUE</button>
+    <button id="btnHowTo" type="button">HOW TO PLAY</button>
+  </div>
+  <div id="howTo" class="hidden">
+    <p><b>Move</b> W A S D · <b>Mouse</b> orbit camera · <b>Shift</b> sprint / boost-grip</p>
+    <p><b>E</b> enter / exit car (any car — parked ones are quieter) · <b>Space</b> handbrake</p>
+    <p><b>Click</b> shoot pistol · <b>R</b> reload · <b>F</b> melee / rob pedestrian at gunpoint</p>
+    <p><b>P</b> city map · <b>M</b> mute · <b>Esc</b> pause · Follow the ◆ marker to work for Odile Vane.</p>
+    <p>Crimes raise your wanted stars. Break line of sight and lie low to cool off.
+       Get held by police and you are BUSTED; hit zero health and you are WASTED. The hospital charges.</p>
+  </div>
+  <div id="titleFoot">A fully original city, crew and story. Built on vendored three.js. No network needed — everything runs from these files.</div>
+</div>
+
+<div id="pauseScreen" class="hidden">
+  <div id="pauseTitle">PAUSED</div>
+  <div id="pauseStats"></div>
+  <button id="btnResume" type="button">RESUME</button>
+  <button id="btnSaveQuit" type="button">SAVE &amp; TITLE</button>
+</div>
+
+<div id="endScreen" class="hidden">
+  <div id="endWord">WASTED</div>
+  <div id="endDetail"></div>
+</div>
+
+<p id="srStatus" role="status" aria-live="polite"></p>
+
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/play.js"></script>
 </body>
 </html>
