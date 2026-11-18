@@ -588,6 +588,11 @@ initInterface(G);
 initStory(G);
 resetPopulation();
 if (SHOT) {
+  // screenshot render diet: one posed frame matters, not particle counts —
+  // quarter the rain, pin the pixel ratio, thicken the fog a touch
+  renderer.setPixelRatio(1);
+  if (G.city.rain) G.city.rain.geometry.setDrawRange(0, 425);
+  scene.fog.density = 0.0058;
   G.mode = 'shot';
   G.ui.title.classList.add('hidden');
   setupShotScene(G, SHOT);
