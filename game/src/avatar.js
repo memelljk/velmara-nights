@@ -1,159 +1,100 @@
-// avatar.js — Jax Rook on foot: the person-mesh factory every human in Velmara
-// shares, the third-person on-foot controller (WASD + mouse-orbit camera,
-// sprinting, walk-cycle animation) and getting in and out of cars — including
-// pulling a driver out of theirs.
+// avatar.js — low-poly people built from boxes: Jax Rook (the player),
+// pedestrians in district-flavoured outfits, dock thugs and police officers.
+// One shared builder, walk-cycle limb swing, simple hit/death poses.
+window.VN = window.VN || {};
 
-import { mergeColoredParts, coloredMaterial, boxPart } from './geomerge.js';
+VN.avatar = (function () {
+  'use strict';
 
-let personBodyMaterial = null;
+  var skinTones = [0xc98d64, 0x8a5a3b, 0xe8b48c, 0x6e4226, 0xd9a066];
+  var shirts = [0xb03a5b, 0x2e6fb0, 0x3fa065, 0xc7a23a, 0x7050b8, 0xcccccc, 0x384048, 0xd06030];
+  var pants = [0x23283a, 0x3a2e22, 0x1e3038, 0x4a4a52, 0x5c2430];
 
-/** A low-poly person with swinging limbs. Torso, head and cap are one merged
- *  vertex-coloured mesh; only the four limb pivots stay separate so the walk
- *  cycle can swing them. userData.limbs holds those pivots. */
-export function makePersonMesh(THREE, outfit) {
-  const person = new THREE.Group();
-  if (!personBodyMaterial) personBodyMaterial = coloredMaterial(THREE);
-  const shirt = new THREE.MeshLambertMaterial({ color: outfit.shirt });
-  const pants = new THREE.MeshLambertMaterial({ color: outfit.pants });
-
-  const parts = [
-    boxPart(THREE, 0.64, 0.82, 0.36, 0, 1.06, 0, outfit.shirt),
-    boxPart(THREE, 0.4, 0.44, 0.4, 0, 1.72, 0, outfit.skin),
-  ];
-  if (outfit.cap !== undefined) {
-    parts.push(boxPart(THREE, 0.46, 0.12, 0.46, 0, 1.98, 0, outfit.cap));
-    parts.push(boxPart(THREE, 0.46, 0.05, 0.3, 0, 1.93, 0.34, outfit.cap));
-  }
-  person.add(new THREE.Mesh(mergeColoredParts(THREE, parts), personBodyMaterial));
-  const limb = (mat, w, len) => {
-    const pivot = new THREE.Group();
-    const box = new THREE.Mesh(new THREE.BoxGeometry(w, len, w), mat);
-    box.position.y = -len / 2;
-    pivot.add(box);
-    return pivot;
-  };
-  const legL = limb(pants, 0.2, 0.68); legL.position.set(-0.17, 0.68, 0);
-  const legR = limb(pants, 0.2, 0.68); legR.position.set(0.17, 0.68, 0);
-  const armL = limb(shirt, 0.16, 0.62); armL.position.set(-0.42, 1.42, 0);
-  const armR = limb(shirt, 0.16, 0.62); armR.position.set(0.42, 1.42, 0);
-  person.add(legL, legR, armL, armR);
-  person.userData.limbs = { legL, legR, armL, armR };
-  return person;
-}
-
-/** Swing limbs for a walker/runner; phase advances with distance travelled. */
-export function animatePersonWalk(mesh, phase, strength = 1) {
-  const { legL, legR, armL, armR } = mesh.userData.limbs;
-  const s = Math.sin(phase) * 0.55 * strength;
-  legL.rotation.x = s;
-  legR.rotation.x = -s;
-  armL.rotation.x = -s * 0.8;
-  armR.rotation.x = s * 0.8;
-}
-
-export function createPlayer(THREE, scene) {
-  const mesh = makePersonMesh(THREE, { shirt: 0x0f7d8c, pants: 0x23232e, skin: 0xc98d64, cap: 0xff3d8a });
-  mesh.position.set(10, 0, 44);
-  scene.add(mesh);
-  return {
-    mesh,
-    heading: Math.PI,
-    walkPhase: 0,
-    car: null,
-    moving: 0,
-  };
-}
-
-/** WASD movement relative to the camera yaw, with building collision. */
-export function stepPlayerOnFoot(G, dt) {
-  const player = G.player;
-  const pos = player.mesh.position;
-  let ix = 0, iz = 0;
-  if (G.keys.KeyW || G.keys.ArrowUp) iz -= 1;
-  if (G.keys.KeyS || G.keys.ArrowDown) iz += 1;
-  if (G.keys.KeyA || G.keys.ArrowLeft) ix -= 1;
-  if (G.keys.KeyD || G.keys.ArrowRight) ix += 1;
-  const sprint = G.keys.ShiftLeft || G.keys.ShiftRight;
-  player.moving = 0;
-  if (ix !== 0 || iz !== 0) {
-    const len = Math.hypot(ix, iz);
-    ix /= len; iz /= len;
-    const sin = Math.sin(G.camYaw), cos = Math.cos(G.camYaw);
-    const wx = ix * cos - iz * sin;
-    const wz = ix * sin + iz * cos;
-    const speed = sprint ? 11.5 : 6.8;
-    pos.x += wx * speed * dt;
-    pos.z += wz * speed * dt;
-    const targetHeading = Math.atan2(wx, wz);
-    let dh = targetHeading - player.heading;
-    while (dh > Math.PI) dh -= Math.PI * 2;
-    while (dh < -Math.PI) dh += Math.PI * 2;
-    player.heading += dh * Math.min(1, dt * 14);
-    player.walkPhase += dt * (sprint ? 13 : 9.5);
-    player.moving = sprint ? 1.4 : 1;
-  } else {
-    player.walkPhase += dt * 1.2;
-  }
-  animatePersonWalk(player.mesh, player.walkPhase, player.moving > 0 ? 1 : 0.06);
-  player.mesh.rotation.y = player.heading;
-  G.cityCollide(pos, 0.55);
-  pos.x = Math.max(-242, Math.min(242, pos.x));
-  pos.z = Math.max(-242, Math.min(244, pos.z));
-  player.mesh.position.y = 0;
-}
-
-/** The car the player could get into right now, or null. */
-export function nearestEnterableCar(G, maxDist = 3.6) {
-  const pos = G.player.mesh.position;
-  let best = null, bestD = maxDist;
-  for (const car of G.cars) {
-    if (car === G.player.car) continue;
-    const d = car.mesh.position.distanceTo(pos);
-    if (d < bestD) { bestD = d; best = car; }
-  }
-  return best;
-}
-
-/**
- * E key: climb out of the current car, or climb into the nearest one.
- * Stealing a moving traffic car means dragging its driver out (a crime);
- * a parked car is a quieter theft. Police cars are never locked to you —
- * but taking one is very loud indeed.
- */
-export function enterExitCar(G) {
-  const player = G.player;
-  if (player.car) {
-    const car = player.car;
-    player.car = null;
-    car.occupied = false;
-    const side = { x: Math.cos(car.heading), z: -Math.sin(car.heading) };
-    player.mesh.position.set(
-      car.mesh.position.x + side.x * 2.4,
-      0,
-      car.mesh.position.z + side.z * 2.4,
+  function box(w, h, d, color, x, y, z) {
+    var m = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshLambertMaterial({ color: color })
     );
-    player.mesh.visible = true;
-    G.cityCollide(player.mesh.position, 0.55);
-    G.sound.carDoor();
-    G.sound.setEngine(0, false);
-    return;
+    m.position.set(x, y, z);
+    return m;
   }
-  const car = nearestEnterableCar(G);
-  if (!car) return;
-  if (car.kind === 'traffic') {
-    G.ejectDriver(car);
-    G.reportCrime('carjack', car.mesh.position);
-  } else if (car.kind === 'parked') {
-    if (!car.stolen) {
-      car.stolen = true;
-      G.reportCrime('theft', car.mesh.position);
+
+  // opts: {skin, shirt, pants, hat, hatColor, officer, thug}
+  function buildPerson(opts) {
+    var g = new THREE.Group();
+    var skin = opts.skin, shirt = opts.shirt, pantsC = opts.pants;
+    var torso = box(0.62, 0.72, 0.34, shirt, 0, 1.08, 0);
+    var head = box(0.34, 0.38, 0.34, skin, 0, 1.66, 0);
+    g.add(torso); g.add(head);
+    if (opts.officer) {
+      g.add(box(0.4, 0.1, 0.4, 0x1c2f66, 0, 1.9, 0));       // cap
+      g.add(box(0.4, 0.06, 0.22, 0x1c2f66, 0, 1.84, 0.2));   // brim
+      g.add(box(0.64, 0.14, 0.36, 0xd8b83a, 0, 1.32, 0));    // hi-vis band
+    } else if (opts.hat) {
+      g.add(box(0.42, 0.12, 0.42, opts.hatColor || 0x222222, 0, 1.9, 0));
+    } else {
+      g.add(box(0.36, 0.12, 0.36, 0x1a1410, 0, 1.9, 0));      // hair
     }
-  } else if (car.kind === 'police') {
-    G.reportCrime('policeTheft', car.mesh.position);
+    if (opts.thug) g.add(box(0.36, 0.16, 0.36, 0x14141c, 0, 1.62, 0)); // mask band
+    var armL = new THREE.Group(), armR = new THREE.Group();
+    armL.position.set(-0.4, 1.38, 0); armR.position.set(0.4, 1.38, 0);
+    armL.add(box(0.18, 0.66, 0.2, shirt, 0, -0.3, 0));
+    armR.add(box(0.18, 0.66, 0.2, shirt, 0, -0.3, 0));
+    g.add(armL); g.add(armR);
+    var legL = new THREE.Group(), legR = new THREE.Group();
+    legL.position.set(-0.16, 0.74, 0); legR.position.set(0.16, 0.74, 0);
+    legL.add(box(0.22, 0.72, 0.24, pantsC, 0, -0.36, 0));
+    legR.add(box(0.22, 0.72, 0.24, pantsC, 0, -0.36, 0));
+    g.add(legL); g.add(legR);
+    // gun (hidden unless aiming / armed role)
+    var gun = box(0.08, 0.14, 0.42, 0x111116, 0, -0.58, 0.16);
+    gun.visible = false;
+    armR.add(gun);
+    return { group: g, armL: armL, armR: armR, legL: legL, legR: legR, gun: gun, head: head };
   }
-  if (car === G.missionCar) G.storyEvent('enteredMissionCar');
-  player.car = car;
-  car.occupied = true;
-  player.mesh.visible = false;
-  G.sound.carDoor();
-}
+
+  function makeJax() {
+    var p = buildPerson({ skin: 0xc98d64, shirt: 0x24304d, pants: 0x1c1c22, hat: false });
+    // Jax's magenta jacket stripe — his silhouette in every screenshot.
+    var stripe = box(0.64, 0.16, 0.36, 0xff2e88, 0, 1.22, 0);
+    p.group.add(stripe);
+    return p;
+  }
+  function makePed(rng) {
+    return buildPerson({
+      skin: skinTones[(rng() * skinTones.length) | 0],
+      shirt: shirts[(rng() * shirts.length) | 0],
+      pants: pants[(rng() * pants.length) | 0],
+      hat: rng() < 0.3, hatColor: shirts[(rng() * shirts.length) | 0]
+    });
+  }
+  function makeOfficer() {
+    return buildPerson({ skin: 0xd9a066, shirt: 0x24407c, pants: 0x182238, officer: true });
+  }
+  function makeThug(rng) {
+    return buildPerson({
+      skin: skinTones[(rng() * skinTones.length) | 0],
+      shirt: 0x30281e, pants: 0x22201c, thug: true
+    });
+  }
+
+  // Walk cycle: swing limbs by phase; aim pose raises the right arm.
+  function pose(p, phase, speed, aiming) {
+    var s = Math.sin(phase) * Math.min(1, speed) * 0.75;
+    p.legL.rotation.x = s;
+    p.legR.rotation.x = -s;
+    if (aiming) {
+      p.armR.rotation.x = -Math.PI / 2 + 0.08;
+      p.armL.rotation.x = -Math.PI / 2 + 0.3;
+    } else {
+      p.armL.rotation.x = -s * 0.8;
+      p.armR.rotation.x = s * 0.8;
+    }
+  }
+  function fall(p) { // death pose: flat on the back
+    p.group.rotation.x = -Math.PI / 2;
+    p.group.position.y = 0.25;
+  }
+
+  return { buildPerson: buildPerson, makeJax: makeJax, makePed: makePed, makeOfficer: makeOfficer, makeThug: makeThug, pose: pose, fall: fall };
+})();

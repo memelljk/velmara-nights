@@ -1,50 +1,98 @@
-// geomerge.js — merge many small coloured boxes/planes into ONE geometry so
-// the city, cars and people cost a handful of draw calls instead of thousands.
-// Each part contributes its geometry (transformed in place by the caller with
-// geometry.rotate*/translate*) and a flat colour, written into a colour
-// attribute; one shared vertex-coloured material renders the whole merge.
+// geomerge.js — Velmara Nights static-geometry merging.
+// The whole city used to be thousands of little meshes. This module collects
+// coloured boxes / planes into a handful of big BufferGeometries so the frame
+// stays near ~350 draw calls even with 200+ buildings and 600+ streetlights.
+window.VN = window.VN || {};
 
-export function mergeColoredParts(THREE, parts) {
-  let vertexCount = 0;
-  const prepared = parts.map(({ geo, color }) => {
-    const g = geo.index ? geo.toNonIndexed() : geo;
-    vertexCount += g.attributes.position.count;
-    return { g, color: new THREE.Color(color) };
-  });
-  const position = new Float32Array(vertexCount * 3);
-  const normal = new Float32Array(vertexCount * 3);
-  const uv = new Float32Array(vertexCount * 2);
-  const colour = new Float32Array(vertexCount * 3);
-  let offset = 0;
-  for (const { g, color } of prepared) {
-    const n = g.attributes.position.count;
-    position.set(g.attributes.position.array, offset * 3);
-    normal.set(g.attributes.normal.array, offset * 3);
-    if (g.attributes.uv) uv.set(g.attributes.uv.array, offset * 2);
-    for (let i = 0; i < n; i++) {
-      colour[(offset + i) * 3] = color.r;
-      colour[(offset + i) * 3 + 1] = color.g;
-      colour[(offset + i) * 3 + 2] = color.b;
-    }
-    offset += n;
+VN.merge = (function () {
+  'use strict';
+
+  // A BoxCollector gathers transformed, coloured boxes and bakes them into a
+  // single geometry. Vertex colours carry the palette, so one Lambert
+  // material serves every merged mesh.
+  function BoxCollector() {
+    this.pos = [];
+    this.nor = [];
+    this.col = [];
+    this.idx = [];
+    this.count = 0;
   }
-  const merged = new THREE.BufferGeometry();
-  merged.setAttribute('position', new THREE.BufferAttribute(position, 3));
-  merged.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
-  merged.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  merged.setAttribute('color', new THREE.BufferAttribute(colour, 3));
-  return merged;
-}
+  var FACES = [
+    // [normal, four corner offsets (x,y,z in -1..1 space, wound outward)]
+    [[0, 0, 1], [[-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]]],
+    [[0, 0, -1], [[1, -1, -1], [-1, -1, -1], [-1, 1, -1], [1, 1, -1]]],
+    [[1, 0, 0], [[1, -1, 1], [1, -1, -1], [1, 1, -1], [1, 1, 1]]],
+    [[-1, 0, 0], [[-1, -1, -1], [-1, -1, 1], [-1, 1, 1], [-1, 1, -1]]],
+    [[0, 1, 0], [[-1, 1, 1], [1, 1, 1], [1, 1, -1], [-1, 1, -1]]],
+    [[0, -1, 0], [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1]]]
+  ];
+  BoxCollector.prototype.add = function (cx, cy, cz, sx, sy, sz, ry, color, shade) {
+    var r = (color >> 16 & 255) / 255, g = (color >> 8 & 255) / 255, b = (color & 255) / 255;
+    var cos = Math.cos(ry || 0), sin = Math.sin(ry || 0);
+    var hx = sx / 2, hy = sy / 2, hz = sz / 2;
+    var base = this.count * 24;
+    for (var f = 0; f < 6; f++) {
+      var n = FACES[f][0], corners = FACES[f][1];
+      var s = shade ? shade[f] : 1;
+      // rotate normal
+      var nx = n[0] * cos + n[2] * sin, nz = -n[0] * sin + n[2] * cos;
+      for (var i = 0; i < 4; i++) {
+        var lx = corners[i][0] * hx, ly = corners[i][1] * hy, lz = corners[i][2] * hz;
+        var wx = lx * cos + lz * sin, wz = -lx * sin + lz * cos;
+        this.pos.push(cx + wx, cy + ly, cz + wz);
+        this.nor.push(nx, n[1], nz);
+        this.col.push(r * s, g * s, b * s);
+      }
+      var o = base + f * 4;
+      this.idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
+    }
+    this.count++;
+    return this;
+  };
+  BoxCollector.prototype.build = function (material) {
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
+    geo.setIndex(this.idx);
+    var mat = material || new THREE.MeshLambertMaterial({ vertexColors: true });
+    var mesh = new THREE.Mesh(geo, mat);
+    mesh.matrixAutoUpdate = false;
+    return mesh;
+  };
 
-/** One shared material for every merged mesh in the game. */
-export function coloredMaterial(THREE) {
-  return new THREE.MeshLambertMaterial({ vertexColors: true });
-}
+  // Per-face shading so merged boxes still read as 3D in flat light.
+  var SHADE = [0.92, 0.78, 0.84, 0.7, 1.0, 0.55];
+  function shaded(collector, cx, cy, cz, sx, sy, sz, ry, color) {
+    return collector.add(cx, cy, cz, sx, sy, sz, ry, color, SHADE);
+  }
 
-/** A box part, already sized, rotated and moved into place. */
-export function boxPart(THREE, w, h, d, x, y, z, color, rotY = 0) {
-  const geo = new THREE.BoxGeometry(w, h, d);
-  if (rotY) geo.rotateY(rotY);
-  geo.translate(x, y, z);
-  return { geo, color };
-}
+  // Merge an array of ready THREE geometries (already transformed) that share
+  // one material — used for cylinders (wheels are dynamic, but crane cables,
+  // lamp heads and pier posts are baked this way via manual geometry lists).
+  function mergeGeometries(geos) {
+    var pos = [], nor = [], idx = [], off = 0;
+    for (var i = 0; i < geos.length; i++) {
+      var g = geos[i];
+      var p = g.getAttribute('position'), n = g.getAttribute('normal');
+      for (var v = 0; v < p.count; v++) {
+        pos.push(p.getX(v), p.getY(v), p.getZ(v));
+        nor.push(n.getX(v), n.getY(v), n.getZ(v));
+      }
+      var index = g.getIndex();
+      if (index) {
+        for (var k = 0; k < index.count; k++) idx.push(index.getX(k) + off);
+      } else {
+        for (var k2 = 0; k2 < p.count; k2++) idx.push(k2 + off);
+      }
+      off += p.count;
+    }
+    var out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    out.setIndex(idx);
+    return out;
+  }
+
+  return { BoxCollector: BoxCollector, shaded: shaded, mergeGeometries: mergeGeometries };
+})();
