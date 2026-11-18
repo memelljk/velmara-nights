@@ -6,7 +6,7 @@ VN.sound = {
     if (this.ctx) return;
     // only create the context after a real user activation, so headless/probe
     // loads never emit the AudioContext autoplay warning
-    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
+    if (navigator.userActivation && !navigator.userActivation.isActive) return;
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.master = this.ctx.createGain(); this.master.gain.value = 0.16;

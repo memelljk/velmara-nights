@@ -112,12 +112,14 @@ VN.carMeshes = function (bodyColor, opts) {
   group.add(lampMesh);
   // headlight cones: faint, fog-free, front side only (proven fix)
   var coneMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.05, fog: false, side: THREE.FrontSide, depthWrite: false, blending: THREE.AdditiveBlending });
+  var cones = [];
   [-0.55, 0.55].forEach(function (lx) {
-    var cone = new THREE.Mesh(new THREE.ConeGeometry(1.15, 7, 10, 1, true), coneMat);
+    var cone = new THREE.Mesh(new THREE.ConeGeometry(0.8, 4.4, 10, 1, true), coneMat);
     cone.rotation.x = Math.PI / 2;
-    cone.position.set(lx, 0.6, 5.6);
-    group.add(cone);
+    cone.position.set(lx, 0.6, 3.9);
+    group.add(cone); cones.push(cone);
   });
+  group.userData.cones = cones;
   group.userData.body = body; group.userData.lamps = lampMesh;
   return group;
 };

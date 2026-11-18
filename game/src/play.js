@@ -221,6 +221,15 @@ window.VN = window.VN || {};
       var cy = height + Math.sin(game.camPitch) * dist * 0.6;
       if (!VN.collides(cx, cz, 0.3)) { camera.position.set(cx, cy, cz); }
       camera.lookAt(target.x, 1.6, target.z);
+      // hide headlight cones of any car very close to the camera: a cone clipped
+      // by the near plane renders as a big flat blob (seen in shot captures)
+      var all = game.allCars.concat(game.traffic, VN.law.cars);
+      for (var ci = 0; ci < all.length; ci++) {
+        var grp = all[ci].mesh; if (!grp || !grp.userData.cones) continue;
+        var fx = Math.sin(grp.rotation.y), fz = Math.cos(grp.rotation.y);
+        var dc = Math.hypot(grp.position.x + fx * 3.9 - camera.position.x, grp.position.z + fz * 3.9 - camera.position.z);
+        for (var cj = 0; cj < grp.userData.cones.length; cj++) grp.userData.cones[cj].visible = dc > 9;
+      }
     }
     renderer.render(scene, camera);
   }

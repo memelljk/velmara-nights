@@ -154,9 +154,9 @@ VN.buildCity = function (scene, seed) {
   // rain
   var rainGeo = new THREE.BufferGeometry();
   var rp = new Float32Array(1500 * 3);
-  for (var r2 = 0; r2 < 1500; r2++) { rp[r2 * 3] = (rnd() - 0.5) * 220; rp[r2 * 3 + 1] = rnd() * 60; rp[r2 * 3 + 2] = (rnd() - 0.5) * 220; }
+  for (var r2 = 0; r2 < 1500; r2++) { var ang = rnd() * 6.283, rad = 16 + rnd() * 94; rp[r2 * 3] = Math.cos(ang) * rad; rp[r2 * 3 + 1] = rnd() * 60; rp[r2 * 3 + 2] = Math.sin(ang) * rad; }
   rainGeo.setAttribute('position', new THREE.BufferAttribute(rp, 3));
-  var rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x9fc8e8, size: 0.55, transparent: true, opacity: 0.55 }));
+  var rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x9fc8e8, size: 0.4, transparent: true, opacity: 0.55 }));
   rain.name = 'rain'; scene.add(rain); city.rain = rain;
   VN.city = city;
   return city;

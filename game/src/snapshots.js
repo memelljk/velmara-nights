@@ -33,8 +33,8 @@ VN.applyShot = function (name) {
       pc.mesh.position.set(pc.x, 0, pc.z); pc.mesh.rotation.y = Math.PI;
       g.scene.add(pc.mesh); VN.law.cars.push(pc);
     }
-    var off = VN.makePerson(15.5, -30, 0x1c2f57, 0x141c30, 0xa87858);
-    off.mesh.position.set(15.5, 0, -30); g.scene.add(off.mesh); VN.law.officers.push(off);
+    var off = VN.makePerson(-10.5, -45, 0x1c2f57, 0x141c30, 0xa87858);
+    off.mesh.position.set(-10.5, 0, -45); g.scene.add(off.mesh); VN.law.officers.push(off);
     VN.law.wanted = 4; VN.law.heat = 80;
     VN.ui.showBanner('LOSE THE POLICE'); VN.ui.setObjective('Lose the police — break their sight line');
     g.markerOverride = null;
