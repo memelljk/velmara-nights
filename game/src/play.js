@@ -31,7 +31,7 @@ window.V = window.V || {};
   function boot() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x070a14);
-    scene.fog = new THREE.Fog(0x0a0e1c, 55, 430);
+    scene.fog = new THREE.Fog(0x0d1322, 60, 470);
     V.sceneRef = scene;
     camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 900);
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -39,11 +39,11 @@ window.V = window.V || {};
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     document.getElementById('stage').appendChild(renderer.domElement);
 
-    scene.add(new THREE.HemisphereLight(0x3d4c72, 0x0a0c12, 0.95));
-    var moon = new THREE.DirectionalLight(0x8fb4ff, 0.55);
+    scene.add(new THREE.HemisphereLight(0x54648c, 0x141824, 1.5));
+    var moon = new THREE.DirectionalLight(0x8fb4ff, 0.75);
     moon.position.set(90, 160, -70);
     scene.add(moon);
-    scene.add(new THREE.AmbientLight(0x2a3350, 0.5));
+    scene.add(new THREE.AmbientLight(0x39466a, 0.85));
     // a low moon disc and its halo, pure decoration
     var moonDisc = new THREE.Mesh(new THREE.CircleGeometry(16, 24),
       new THREE.MeshBasicMaterial({ color: 0xdfe9ff, fog: false }));

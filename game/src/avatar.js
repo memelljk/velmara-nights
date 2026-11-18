@@ -18,46 +18,29 @@ window.V = window.V || {};
   }
 
   // A ~1.85 m figure: legs and arms pivot at hip and shoulder so the walk
-  // cycle is just two sine waves. The right hand can carry a pistol.
+  // cycle is just two sine waves. Torso, head, cap and skirt never move
+  // relative to each other, so they are baked into ONE vertex-coloured
+  // mesh; only the four limbs and the pistol stay separate. The right
+  // hand can carry a pistol.
   function buildHumanoid(opts) {
     var g = new THREE.Group();
     var skin = opts.skin || 0xc89878;
-    var legL = limb(0.24, 0.86, 0.27, opts.pants, -0.15, 0.88);
-    var legR = limb(0.24, 0.86, 0.27, opts.pants, 0.15, 0.88);
-    var torso = new THREE.Mesh(
-      new THREE.BoxGeometry(0.64, 0.74, 0.36),
-      new THREE.MeshLambertMaterial({ color: opts.shirt })
-    );
-    torso.position.y = 1.26;
+    var legColour = opts.pants || opts.dress || 0x23242e;
+    var legL = limb(0.24, 0.86, 0.27, legColour, -0.15, 0.88);
+    var legR = limb(0.24, 0.86, 0.27, legColour, 0.15, 0.88);
+    var upper = new V.Builder();
+    upper.box(0.64, 0.74, 0.36, 0, 1.26, 0, 0, opts.shirt, null);       // torso
+    upper.box(0.35, 0.4, 0.35, 0, 1.84, 0, 0, skin, null);              // head
+    if (opts.cap) {
+      upper.box(0.4, 0.12, 0.42, 0, 2.06, 0, 0, opts.cap, null);
+      upper.box(0.38, 0.05, 0.24, 0, 2.0, 0.3, 0, opts.cap, null);      // brim
+    }
+    if (opts.dress) upper.box(0.58, 0.5, 0.44, 0, 0.82, 0, 0, opts.dress, null);
+    var torso = upper.build(new THREE.MeshLambertMaterial({ vertexColors: true }));
     var armL = limb(0.19, 0.7, 0.21, opts.shirt, -0.42, 1.56);
     var armR = limb(0.19, 0.7, 0.21, opts.shirt, 0.42, 1.56);
-    var head = new THREE.Mesh(
-      new THREE.BoxGeometry(0.35, 0.4, 0.35),
-      new THREE.MeshLambertMaterial({ color: skin })
-    );
-    head.position.y = 1.84;
-    g.add(legL); g.add(legR); g.add(torso); g.add(armL); g.add(armR); g.add(head);
-    if (opts.cap) {
-      var cap = new THREE.Mesh(
-        new THREE.BoxGeometry(0.4, 0.12, 0.42),
-        new THREE.MeshLambertMaterial({ color: opts.cap })
-      );
-      cap.position.y = 2.06;
-      var brim = new THREE.Mesh(
-        new THREE.BoxGeometry(0.38, 0.05, 0.24),
-        new THREE.MeshLambertMaterial({ color: opts.cap })
-      );
-      brim.position.set(0, 2.0, 0.3);
-      g.add(cap); g.add(brim);
-    }
-    if (opts.dress) {
-      var skirt = new THREE.Mesh(
-        new THREE.BoxGeometry(0.58, 0.5, 0.44),
-        new THREE.MeshLambertMaterial({ color: opts.dress })
-      );
-      skirt.position.y = 0.82;
-      g.add(skirt);
-    }
+    var head = torso;
+    g.add(legL); g.add(legR); g.add(torso); g.add(armL); g.add(armR);
     var pistol = new THREE.Mesh(
       new THREE.BoxGeometry(0.09, 0.16, 0.34),
       new THREE.MeshLambertMaterial({ color: 0x17181c })

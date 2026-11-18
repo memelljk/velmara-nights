@@ -24,53 +24,45 @@ window.V = window.V || {};
   function makeCarMesh(kind, colour) {
     var spec = KINDS[kind];
     var g = new THREE.Group();
-    var paint = new THREE.MeshLambertMaterial({ color: colour });
-    var dark = new THREE.MeshLambertMaterial({ color: 0x14161c });
-    var glass = new THREE.MeshLambertMaterial({ color: 0x0e1622 });
-    var body = new THREE.Mesh(new THREE.BoxGeometry(spec.w, spec.h, spec.l), paint);
-    body.position.y = 0.35 + spec.h / 2;
-    g.add(body);
-    var cabin = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.82, spec.cabin, spec.l * 0.46), glass);
-    cabin.position.set(0, 0.35 + spec.h + spec.cabin / 2 - 0.04, -spec.l * 0.04);
-    g.add(cabin);
+    // The whole shell — body, cabin, wheels, bed, stripes — is baked into
+    // ONE vertex-coloured mesh; the lamps go into a second emissive mesh.
+    // A car costs 3 draw calls instead of a dozen.
+    var shell = new V.Builder();
+    shell.box(spec.w, spec.h, spec.l, 0, 0.35 + spec.h / 2, 0, 0, colour, null);
+    shell.box(spec.w * 0.82, spec.cabin, spec.l * 0.46, 0,
+      0.35 + spec.h + spec.cabin / 2 - 0.04, -spec.l * 0.04, 0, 0x0e1622, null);
     if (kind === 'pickup') {
-      var bed = new THREE.Mesh(new THREE.BoxGeometry(spec.w * 0.9, 0.3, spec.l * 0.3), dark);
-      bed.position.set(0, 0.35 + spec.h + 0.1, spec.l * 0.32);
-      g.add(bed);
-    }
-    if (kind === 'taxi') {
-      var signB = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 0.34),
-        new THREE.MeshBasicMaterial({ color: 0xffe95e }));
-      signB.position.set(0, 0.35 + spec.h + spec.cabin + 0.1, -spec.l * 0.04);
-      g.add(signB);
+      shell.box(spec.w * 0.9, 0.3, spec.l * 0.3, 0, 0.35 + spec.h + 0.1, spec.l * 0.32, 0, 0x14161c, null);
     }
     var wheelGeo = new THREE.CylinderGeometry(0.37, 0.37, 0.26, 10);
     wheelGeo.rotateZ(Math.PI / 2);
-    var wheels = [];
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (s) {
-      var w = new THREE.Mesh(wheelGeo, dark);
-      w.position.set(s[0] * (spec.w / 2 - 0.05), 0.37, s[1] * spec.l * 0.32);
-      g.add(w); wheels.push(w);
+      var wm = new THREE.Matrix4();
+      wm.setPosition(s[0] * (spec.w / 2 - 0.05), 0.37, s[1] * spec.l * 0.32);
+      shell.add(wheelGeo, wm, 0x14161c, null);
     });
-    // headlights: emissive blocks plus fake light cones for the wet street
-    var hl = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+    if (kind === 'cruiser') {
+      shell.box(spec.w + 0.04, 0.3, spec.l * 0.7, 0, 0.62, 0, 0, 0xd8dee8, null);
+    }
+    g.add(shell.build(new THREE.MeshLambertMaterial({ vertexColors: true })));
+    var lamps = new V.Builder();
     [-0.6, 0.6].forEach(function (sx) {
-      var lamp = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.08), hl);
-      lamp.position.set(sx * spec.w * 0.62, 0.72, spec.l / 2 + 0.02);
-      g.add(lamp);
-      var tl = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.13, 0.08),
-        new THREE.MeshBasicMaterial({ color: 0xff3b30 }));
-      tl.position.set(sx * spec.w * 0.62, 0.78, -spec.l / 2 - 0.02);
-      g.add(tl);
+      lamps.box(0.34, 0.16, 0.08, sx * spec.w * 0.62, 0.72, spec.l / 2 + 0.02, 0, 0xfff2b0, null);
+      lamps.box(0.34, 0.13, 0.08, sx * spec.w * 0.62, 0.78, -spec.l / 2 - 0.02, 0, 0xff3b30, null);
     });
-    var coneGeo = new THREE.ConeGeometry(1.15, 6.5, 10, 1, true);
+    if (kind === 'taxi') {
+      lamps.box(0.7, 0.22, 0.34, 0, 0.35 + spec.h + spec.cabin + 0.1, -spec.l * 0.04, 0, 0xffe95e, null);
+    }
+    g.add(lamps.build(new THREE.MeshBasicMaterial({ vertexColors: true })));
+    var wheels = [];
+    var coneGeo = new THREE.ConeGeometry(0.85, 5.5, 10, 1, true);
     coneGeo.rotateX(-Math.PI / 2);
     var coneMat = new THREE.MeshBasicMaterial({
-      color: 0xffedb5, transparent: true, opacity: 0.10,
-      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+      color: 0xffedb5, transparent: true, opacity: 0.04, fog: false,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide
     });
     var cone = new THREE.Mesh(coneGeo, coneMat);
-    cone.position.set(0, 0.62, spec.l / 2 + 3.1);
+    cone.position.set(0, 0.62, spec.l / 2 + 2.6);
     g.add(cone);
     var extras = { wheels: wheels, cone: cone };
     if (kind === 'cruiser') {
@@ -85,10 +77,6 @@ window.V = window.V || {};
       bar.position.set(0, 0.35 + spec.h + spec.cabin + 0.1, -spec.l * 0.04);
       g.add(bar);
       extras.lightBar = bar; extras.barRed = red; extras.barBlue = blue;
-      var stripe = new THREE.Mesh(new THREE.BoxGeometry(spec.w + 0.04, 0.3, spec.l * 0.7),
-        new THREE.MeshLambertMaterial({ color: 0xd8dee8 }));
-      stripe.position.y = 0.62;
-      g.add(stripe);
     }
     return { group: g, extras: extras };
   }
@@ -124,6 +112,7 @@ window.V = window.V || {};
     // smoke particle pool
     var geo = new THREE.BufferGeometry();
     var pts = new Float32Array(240 * 3);
+    for (var q = 0; q < 240; q++) pts[q * 3 + 1] = -50; // parked underground until used
     geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
     var mat = new THREE.PointsMaterial({ color: 0x9aa0aa, size: 1.5, transparent: true, opacity: 0.5, depthWrite: false });
     var points = new THREE.Points(geo, mat);

@@ -64,7 +64,7 @@ window.V = window.V || {};
     chase: function (api) {
       var city = api.city;
       var coupe = V.spawnCar('coupe', 6, 234.4, Math.PI / 2, { colour: 0xc94f6d, driver: 'parked' });
-      var spots = [[-11, 233.2], [-17.5, 236.8], [-24, 232.6], [-31, 237.4]];
+      var spots = [[-9, 233.0], [-14.5, 236.9], [-20, 232.4], [-26, 237.2]];
       for (var i = 0; i < spots.length; i++) {
         var c = V.spawnCar('cruiser', spots[i][0], spots[i][1], Math.PI / 2, { driver: 'parked' });
         c.ai = { active: false };
@@ -74,11 +74,11 @@ window.V = window.V || {};
       var officer = V.buildHumanoid({ shirt: 0x27364e, pants: 0x1c2733, skin: 0xc89878, cap: 0x141c28 });
       officer.pistol.visible = true;
       officer.armR.rotation.x = -1.35;
-      officer.group.position.set(16, 0, 224.5);
+      officer.group.position.set(-4, 0, 225.2);
       officer.group.rotation.y = Math.PI * 0.85;
       api.scene.add(officer.group);
       hideHero(api);
-      api.setCamera(-6.5, 3.6, 224.8, 10, 1.1, 235.5);
+      api.setCamera(-38.5, 5.6, 229.6, 14, 1.0, 235.8);
       V.law.stars = 4;
       V.law.heat = 92;
       setObjective('Lose the police', 6, 234.4, 0, null);

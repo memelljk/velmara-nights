@@ -44,7 +44,7 @@ window.V = window.V || {};
       for (var tx = 0; tx < 4; tx++) {
         var palette = (tx + ty) % 3 === 0 ? neon : ((tx + ty) % 2 === 0 ? warm : cool);
         var litRatio = 0.34 + rng() * 0.3;
-        var cols = 6, rows = 10;
+        var cols = 8, rows = 14;
         var cw = 128 / cols, ch = 128 / rows;
         for (var r = 0; r < rows; r++) {
           for (var c = 0; c < cols; c++) {
@@ -74,7 +74,7 @@ window.V = window.V || {};
     cv.width = S; cv.height = S;
     var ctx = cv.getContext('2d');
     var px = function (w) { return (w + WORLD) / (WORLD * 2) * S; };
-    ctx.fillStyle = '#191b23'; // block interiors / sidewalks
+    ctx.fillStyle = '#272b38'; // block interiors / sidewalks
     ctx.fillRect(0, 0, S, S);
     // harbour water south of the quay
     var qy = px(QUAY_Z);
@@ -87,7 +87,7 @@ window.V = window.V || {};
     ctx.fillStyle = '#3a3f4c'; // quay apron
     ctx.fillRect(0, px(250), S, qy - px(250));
     // roads
-    ctx.fillStyle = '#0b0c11';
+    ctx.fillStyle = '#14161e';
     ROAD_LINES.forEach(function (r) {
       ctx.fillRect(px(r - ROAD_HALF), 0, px(r + ROAD_HALF) - px(r - ROAD_HALF), qy);
       ctx.fillRect(0, px(r - ROAD_HALF), S, px(r + ROAD_HALF) - px(r - ROAD_HALF));
@@ -221,9 +221,12 @@ window.V = window.V || {};
           var bh = style.hMin + rng() * (style.hMax - style.hMin);
           var tile = (rng() * 16) | 0;
           var tu = (tile % 4) / 4, tv = ((tile / 4) | 0) / 4;
-          var vSpan = V.clamp(bh / 46, 0.3, 1) * 0.25;
+          // window cells stay ~2.2 m wide and ~3.2 m tall whatever the
+          // tower's size, by sampling a matching slice of the atlas tile
+          var uSpan = V.clamp(bw / 17.6, 0.3, 1) * 0.25;
+          var vSpan = V.clamp(bh / 44.8, 0.22, 1) * 0.25;
           var tint = style.tint[(rng() * style.tint.length) | 0];
-          buildBatch.box(bw, bh, bd, bx, bh / 2, bz, 0, tint, [tu, tv + 0.25 - vSpan, tu + 0.25, tv + 0.25]);
+          buildBatch.box(bw, bh, bd, bx, bh / 2, bz, 0, tint, [tu, tv + 0.25 - vSpan, tu + uSpan, tv + 0.25]);
           // rooftop cap
           buildBatch.box(bw + 0.6, 0.7, bd + 0.6, bx, bh + 0.35, bz, 0, 0x14161e, null);
           city.buildings.push({ x: bx, z: bz, w: bw, d: bd, h: bh, district: district });
@@ -236,7 +239,7 @@ window.V = window.V || {};
     }
     var buildingMat = new THREE.MeshLambertMaterial({
       map: atlas, vertexColors: true,
-      emissive: 0xffffff, emissiveMap: atlas, emissiveIntensity: 0.5
+      emissive: 0xffffff, emissiveMap: atlas, emissiveIntensity: 0.95
     });
     scene.add(buildBatch.build(buildingMat));
 
@@ -260,7 +263,7 @@ window.V = window.V || {};
     lampSpots.forEach(function (s) {
       poleBatch.box(0.28, 5.4, 0.28, s.x, 2.7, s.z, 0, 0x23262e, null);
       var ax = s.vertical ? s.x - Math.sign(s.x % 97) * 0 : s.x;
-      headBatch.box(1.5, 0.22, 0.5, s.x, 5.45, s.z, s.vertical ? 0 : Math.PI / 2, 0xffc37a, null);
+      headBatch.box(2.4, 0.26, 0.72, s.x, 5.45, s.z, s.vertical ? 0 : Math.PI / 2, 0xffc37a, null);
       city.lampCount++;
     });
     scene.add(poleBatch.build(new THREE.MeshLambertMaterial({ vertexColors: true })));
