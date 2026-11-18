@@ -124,7 +124,8 @@ VN.ui = (function () {
     els.cash.textContent = '$' + p.cash.toLocaleString('en-US');
     els.rep.textContent = VN.story.rankFor(p.rep) + ' · ' + p.rep + ' REP';
     var clockSec = (22 * 3600 + state.timeOfDay) % 86400;
-    els.clock.textContent = fmtTime(clockSec);
+    var ch = Math.floor(clockSec / 3600), cm = Math.floor((clockSec % 3600) / 60);
+    els.clock.textContent = (ch < 10 ? '0' : '') + ch + ':' + (cm < 10 ? '0' : '') + cm;
     els.healthbar.style.width = Math.max(0, p.health) + '%';
     els.healthbar.style.background = p.health > 35 ? '#69f0ae' : '#ff5252';
     var stars = '';
@@ -138,7 +139,7 @@ VN.ui = (function () {
       els.speed.textContent = '';
       els.vehicle.textContent = '';
     }
-    els.ammo.textContent = state.mode === 'foot' && p.aiming ? 'PISTOL ' + state.combat.ammo + ' / ' + state.combat.reserve + (state.combat.reloading > 0 ? ' · RELOADING' : '') : '';
+    els.ammo.textContent = (state.mode === 'foot' || state.mode === 'dialogue') && p.aiming ? 'PISTOL ' + state.combat.ammo + ' / ' + state.combat.reserve + (state.combat.reloading > 0 ? ' · RELOADING' : '') : '';
     els.crosshair.style.display = state.mode === 'foot' && p.aiming ? 'block' : 'none';
 
     var obj = VN.story.currentObjective(state);

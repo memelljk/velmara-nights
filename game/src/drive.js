@@ -65,12 +65,12 @@ VN.drive = (function () {
     });
     g.add(box(def.w * 0.7, 0.1, 0.08, chromeMat, 0, 0.5, def.l / 2 + 0.02)); // bumper shine
     // headlight cones (fake volumetrics, additive planes)
-    var coneMat = new THREE.MeshBasicMaterial({ color: 0xffedb5, transparent: true, opacity: 0.10, blending: THREE.AdditiveBlending, depthWrite: false });
-    var coneGeo = new THREE.ConeGeometry(1.5, 9, 12, 1, true);
+    var coneMat = new THREE.MeshBasicMaterial({ color: 0xffedb5, transparent: true, opacity: 0.045, blending: THREE.AdditiveBlending, depthWrite: false });
+    var coneGeo = new THREE.ConeGeometry(1.15, 7.5, 12, 1, true);
     [-0.6, 0.6].forEach(function (ox) {
       var cone = new THREE.Mesh(coneGeo, coneMat);
       cone.rotation.x = Math.PI / 2 + 0.06;
-      cone.position.set(ox, 0.66, def.l / 2 + 4.4);
+      cone.position.set(ox, 0.66, def.l / 2 + 3.6);
       g.add(cone);
     });
     return { group: g, wheels: wheels, def: def };

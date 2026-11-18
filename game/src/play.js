@@ -246,7 +246,7 @@ VN.play = (function () {
 
     VN.crowds.stepPeds(s, dt, s.panic);
     VN.crowds.stepTraffic(s, dt, s.panic);
-    VN.law.step(s, dt);
+    VN.law.step(s.law, s, dt);
     VN.story.step(s, dt);
     VN.story.stepSide(s, dt);
     VN.combat.step(s, dt);
@@ -284,9 +284,14 @@ VN.play = (function () {
       camera.position.set(cam.pos[0], cam.pos[1], cam.pos[2]);
       camera.lookAt(cam.look[0], cam.look[1], cam.look[2]);
       VN.ui.update(s, 0);
-      renderer.render(s.scene, camera);
       document.title = 'VELMARA NIGHTS — ' + shotName;
       window.__vnShotReady = true;
+      // Keep re-rendering the posed frame: a single render's drawing buffer
+      // is cleared before a headless capture composites it, leaving black.
+      (function loop() {
+        renderer.render(s.scene, camera);
+        requestAnimationFrame(loop);
+      })();
       return;
     }
 
@@ -393,6 +398,7 @@ VN.play = (function () {
   // Lightweight probe hooks for automated checks (not used by gameplay).
   window.__vn = {
     get state() { return state; },
+    get renderer() { return renderer; },
     startGame: function () { if (state) startGame(state, null); },
     interact: function () { if (state) doInteract(state); },
     keys: keys

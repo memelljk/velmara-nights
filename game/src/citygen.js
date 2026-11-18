@@ -143,16 +143,19 @@ VN.city = (function () {
       var lc = roadCoord(ri);
       for (var s = -CITY_EDGE + 12; s < CITY_EDGE; s += 16) {
         if (Math.abs(s - Math.round(s / GRID) * GRID) < 10) continue; // skip junctions
-        var side = ((s / 16) | 0) % 2 === 0 ? 1 : -1;
-        var lx = lc + side * (ROAD_W / 2 + 1.2), lz = s;
-        boxes.add(lx, 2.6, lz, 0.28, 5.2, 0.28, 0, 0x1c1f2a);
-        bright.add(lx - side * 0.9, 5.15, lz, 1.9, 0.22, 0.5, 0, 0xffd9a0);
-        lamps.push({ x: lx - side * 0.9, z: lz });
-        var lx2 = s, lz2 = lc + side * (ROAD_W / 2 + 1.2);
-        boxes.add(lx2, 2.6, lz2, 0.28, 5.2, 0.28, 0, 0x1c1f2a);
-        bright.add(lx2, 5.15, lz2 - side * 0.9, 0.5, 0.22, 1.9, 0, 0xffd9a0);
-        lamps.push({ x: lx2, z: lz2 - side * 0.9 });
-        stats.lamps += 2;
+        // both kerbs, both orientations: a lamp every 16 m on every street
+        for (var sd = 0; sd < 2; sd++) {
+          var side = sd === 0 ? 1 : -1;
+          var lx = lc + side * (ROAD_W / 2 + 1.2), lz = s;
+          boxes.add(lx, 2.6, lz, 0.28, 5.2, 0.28, 0, 0x1c1f2a);
+          bright.add(lx - side * 0.9, 5.15, lz, 1.9, 0.22, 0.5, 0, 0xffd9a0);
+          lamps.push({ x: lx - side * 0.9, z: lz });
+          var lx2 = s, lz2 = lc + side * (ROAD_W / 2 + 1.2);
+          boxes.add(lx2, 2.6, lz2, 0.28, 5.2, 0.28, 0, 0x1c1f2a);
+          bright.add(lx2, 5.15, lz2 - side * 0.9, 0.5, 0.22, 1.9, 0, 0xffd9a0);
+          lamps.push({ x: lx2, z: lz2 - side * 0.9 });
+          stats.lamps += 2;
+        }
       }
     }
 
@@ -217,6 +220,10 @@ VN.city = (function () {
           var w = 11 + rng() * 6, d = 11 + rng() * 6;
           var tall = district === 'Neon Mile' ? 26 + rng() * 30 : district === 'The Heights' ? 14 + rng() * 16 : 9 + rng() * 13;
           addBuilding(cx0 + ox, cz0 + oz, w, d, tall, district);
+        }
+        // an annex block fills most block centres: ~220 buildings in all
+        if (rng() < 0.42) {
+          addBuilding(cx0 + (rng() - 0.5) * 4, cz0 + (rng() - 0.5) * 4, 8 + rng() * 3, 8 + rng() * 3, 6 + rng() * 7, district);
         }
         // parked cars along block edges
         if (rng() < 0.75) {
@@ -307,7 +314,7 @@ VN.city = (function () {
     var rainGeo = new THREE.BufferGeometry();
     rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
     var rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({
-      color: 0x9fc4e8, size: 0.55, transparent: true, opacity: 0.55
+      color: 0x9fc4e8, size: 0.85, transparent: true, opacity: 0.65
     }));
     rain.frustumCulled = false;
     scene.add(rain);

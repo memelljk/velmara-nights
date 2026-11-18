@@ -54,6 +54,8 @@ VN.crowds = (function () {
     var spots = city.parkSpots.slice();
     for (var s = 0; s < spots.length && parked.length < 22; s++) {
       if (rng() < 0.35) continue;
+      var spotTest = VN.city.collide(city.colliders, spots[s].x, spots[s].z, 1.5);
+      if (spotTest.x !== spots[s].x || spotTest.z !== spots[s].z) continue; // inside a building footprint
       var pm = (rng() * 8) | 0;
       var pc = VN.drive.makeCar(pm, rng, false);
       pc.x = spots[s].x; pc.z = spots[s].z; pc.ry = spots[s].ry + (rng() - 0.5) * 0.1;
@@ -62,10 +64,10 @@ VN.crowds = (function () {
       VN.drive.sync(pc, 0);
       parked.push(pc);
     }
-    // The indigo Orphee GT always waits behind the Rialto casino (mission 3).
+    // The indigo Orphee GT always waits behind the Rialto casino (mission 3),
+    // kerbside on the avenue corner so no building can swallow it.
     var gt = VN.drive.makeCar(4, rng, false);
-    gt.group.children.forEach(function () {});
-    gt.x = -24; gt.z = -118; gt.ry = 0.2; gt.parked = true; gt.special = 'orphee';
+    gt.x = -13.5; gt.z = -101; gt.ry = 0.2; gt.parked = true; gt.special = 'orphee';
     city.scene.add(gt.group);
     VN.drive.sync(gt, 0);
     parked.push(gt);

@@ -55,26 +55,26 @@ VN.snapshots = (function () {
     // 1 — cover: pink Orphee GT on the Neon Mile, rain, traffic ahead,
     // FIRST PARCEL banner, full HUD + minimap.
     cover: function (state) {
-      var car = setPlayerCar(state, 4, 0xff2e88, -6, -48, Math.PI / 2);
+      var car = setPlayerCar(state, 4, 0xff2e88, 2, -48, Math.PI / 2);
       car.speed = 22;
       var t1 = VN.drive.makeCar(0, state.rng, false);
-      placeCar(state, t1, 16, -44.9, Math.PI / 2, 14); state.traffic.push(t1);
+      placeCar(state, t1, 24, -44.9, Math.PI / 2, 14); state.traffic.push(t1);
       var t2 = VN.drive.makeCar(6, state.rng, false);
-      placeCar(state, t2, 34, -44.9, Math.PI / 2, 14); state.traffic.push(t2);
+      placeCar(state, t2, 42, -44.9, Math.PI / 2, 14); state.traffic.push(t2);
       var t3 = VN.drive.makeCar(1, state.rng, false);
-      placeCar(state, t3, 10, -51.1, -Math.PI / 2, 12); state.traffic.push(t3);
+      placeCar(state, t3, 18, -51.1, -Math.PI / 2, 12); state.traffic.push(t3);
       state.story.active = VN.story.MISSIONS[0];
       state.story.stage = 0;
       VN.ui.banner(state, 'FIRST PARCEL');
-      return { pos: [-17, 4.6, -55.5], look: [8, 1.2, -46] };
+      return { pos: [-8, 4.4, -57], look: [16, 1.2, -44] };
     },
     // 2 — chase: coupe at speed, four cruisers lit behind, officer on the
     // sidewalk, 4 stars, "Lose the police".
     chase: function (state) {
-      var car = setPlayerCar(state, 3, 0xd06030, 0, 0, Math.PI / 2);
+      var car = setPlayerCar(state, 3, 0xd06030, -4, -96, Math.PI / 2);
       car.speed = 30;
       state.law.wanted = 4; state.law.heat = 70;
-      var offs = [[-11, 3.4], [-13, -3.2], [-20, 3.6], [-23, -3.4]];
+      var offs = [[-15, -92.6], [-18, -99.2], [-25, -92.8], [-28, -99.4]];
       for (var i = 0; i < 4; i++) {
         var pc = VN.drive.makeCar(8, state.rng, true);
         placeCar(state, pc, offs[i][0], offs[i][1], Math.PI / 2, 29);
@@ -82,40 +82,41 @@ VN.snapshots = (function () {
       }
       lightBarsOn(state, true);
       var off = VN.avatar.makeOfficer();
-      off.group.position.set(7, 0, 8.6);
+      off.group.position.set(-1, 0, -88.2);
       off.group.rotation.y = -Math.PI / 2;
       state.scene.add(off.group);
       state.story.active = VN.story.MISSIONS[2];
       state.story.stage = 1; // escape stage
-      return { pos: [-13.5, 4.2, -7.5], look: [14, 1.1, 1.5] };
+      return { pos: [-35, 4.2, -101], look: [14, 1.1, -93.5] };
     },
     // 3 — on foot: Jax in the Old Market, stalls + peds, Odile dialogue open,
     // objective ~12 m away, pistol ammo on the HUD.
     onfoot: function (state) {
       var plaza = state.city.plaza;
-      state.player.x = plaza.x - 11; state.player.z = plaza.z + 3;
+      // Jax stands in the aisle between stall rows, ~12 m from the plaza heart.
+      state.player.x = plaza.x - 11.4; state.player.z = plaza.z + 3.5;
       state.player.ry = Math.PI / 2;
       state.player.aiming = true;
       state.player.fig.gun.visible = true;
       VN.avatar.pose(state.player.fig, 0, 0, true);
       state.mode = 'foot';
-      // Odile figure facing Jax (she came to the market herself for this one)
+      // Odile faces Jax in the aisle (she came to the market herself for this one)
       var odile = VN.avatar.buildPerson({ skin: 0xe8b48c, shirt: 0x701a4d, pants: 0x14141c, hat: false });
-      odile.group.position.set(plaza.x - 8.6, 0, plaza.z + 3.2);
+      odile.group.position.set(plaza.x - 8.9, 0, plaza.z + 3.8);
       odile.group.rotation.y = -Math.PI / 2;
       state.scene.add(odile.group);
-      // a few peds among the stalls
+      // a few peds further down the aisle, among the stalls
       for (var i = 0; i < 5 && i < state.peds.length; i++) {
         var ped = state.peds[i];
-        ped.x = plaza.x - 4 + i * 3.4; ped.z = plaza.z - 5 + (i % 2) * 7;
+        ped.x = plaza.x + 2 + i * 4.6; ped.z = plaza.z + 2.4 + (i % 2) * 2.6;
         ped.fig.group.position.set(ped.x, 0, ped.z);
         ped.fig.group.rotation.y = i * 1.3;
       }
       state.story.active = VN.story.MISSIONS[0];
-      state.story.stage = 0; // reach plaza: player stands ~11–12 m out
+      state.story.stage = 0; // reach plaza: player stands ~12 m out
       VN.ui.dialogue(state, [['Odile Vane', 'The parcel is under the third stall, Jax. Take it, and do not let the rain — or anyone — slow you down.']], null);
       state.mode = 'dialogue';
-      return { pos: [plaza.x - 15.5, 3.1, plaza.z + 8.5], look: [plaza.x - 4, 1.2, plaza.z + 1] };
+      return { pos: [plaza.x - 20.5, 2.6, plaza.z + 4.5], look: [plaza.x - 6, 1.2, plaza.z + 2.5] };
     },
     // 4 — mission: Dockmaster Pickup on the harbor run, timed stage at ~96 s,
     // marker ~47 m, TATTOO sign, oncoming traffic.
@@ -126,17 +127,24 @@ VN.snapshots = (function () {
       state.story.stage = 1; // timed delivery to Dock Nine
       state.story.timer = 96;
       var on = VN.drive.makeCar(0, state.rng, false);
-      placeCar(state, on, -64, 147, -Math.PI / 2, 12); state.traffic.push(on);
+      placeCar(state, on, -30, 147, -Math.PI / 2, 12); state.traffic.push(on);
       var on2 = VN.drive.makeCar(7, state.rng, false);
-      placeCar(state, on2, -18, 147, -Math.PI / 2, 12); state.traffic.push(on2);
-      tattooSign(state, -58, 6.5, 158.5, Math.PI);
-      return { pos: [-58, 5.2, 141], look: [-30, 1.2, 162] };
+      placeCar(state, on2, -58, 150, -Math.PI / 2, 12); state.traffic.push(on2);
+      tattooSign(state, -52, 6.5, 159, Math.PI);
+      return { pos: [-44, 3.3, 134], look: [-38, 1.2, 160] };
     }
   };
 
   function setup(state, name) {
     var fn = SCENES[name] || SCENES.cover;
     var cam = fn(state);
+    // &cam=x,y,z:lx,ly,lz overrides the posed camera (framing checks).
+    var override = new URLSearchParams(location.search).get('cam');
+    if (override) {
+      var parts = override.split(':');
+      var p = parts[0].split(',').map(Number), l = parts[1].split(',').map(Number);
+      if (p.length === 3 && l.length === 3) cam = { pos: p, look: l };
+    }
     state.shotCam = cam;
     return cam;
   }
