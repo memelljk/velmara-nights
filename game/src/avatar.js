@@ -3,30 +3,28 @@
 // sprinting, walk-cycle animation) and getting in and out of cars — including
 // pulling a driver out of theirs.
 
-/** A low-poly person with swinging limbs. Returns a Group whose userData holds
- *  the limb pivots the walk cycle animates. */
+import { mergeColoredParts, coloredMaterial, boxPart } from './geomerge.js';
+
+let personBodyMaterial = null;
+
+/** A low-poly person with swinging limbs. Torso, head and cap are one merged
+ *  vertex-coloured mesh; only the four limb pivots stay separate so the walk
+ *  cycle can swing them. userData.limbs holds those pivots. */
 export function makePersonMesh(THREE, outfit) {
   const person = new THREE.Group();
+  if (!personBodyMaterial) personBodyMaterial = coloredMaterial(THREE);
   const shirt = new THREE.MeshLambertMaterial({ color: outfit.shirt });
   const pants = new THREE.MeshLambertMaterial({ color: outfit.pants });
-  const skin = new THREE.MeshLambertMaterial({ color: outfit.skin });
 
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.82, 0.36), shirt);
-  torso.position.y = 1.06;
-  person.add(torso);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.44, 0.4), skin);
-  head.position.y = 1.72;
-  person.add(head);
+  const parts = [
+    boxPart(THREE, 0.64, 0.82, 0.36, 0, 1.06, 0, outfit.shirt),
+    boxPart(THREE, 0.4, 0.44, 0.4, 0, 1.72, 0, outfit.skin),
+  ];
   if (outfit.cap !== undefined) {
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.12, 0.46),
-      new THREE.MeshLambertMaterial({ color: outfit.cap }));
-    cap.position.y = 1.98;
-    person.add(cap);
-    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.05, 0.3),
-      new THREE.MeshLambertMaterial({ color: outfit.cap }));
-    brim.position.set(0, 1.93, 0.34);
-    person.add(brim);
+    parts.push(boxPart(THREE, 0.46, 0.12, 0.46, 0, 1.98, 0, outfit.cap));
+    parts.push(boxPart(THREE, 0.46, 0.05, 0.3, 0, 1.93, 0.34, outfit.cap));
   }
+  person.add(new THREE.Mesh(mergeColoredParts(THREE, parts), personBodyMaterial));
   const limb = (mat, w, len) => {
     const pivot = new THREE.Group();
     const box = new THREE.Mesh(new THREE.BoxGeometry(w, len, w), mat);
@@ -40,7 +38,6 @@ export function makePersonMesh(THREE, outfit) {
   const armR = limb(shirt, 0.16, 0.62); armR.position.set(0.42, 1.42, 0);
   person.add(legL, legR, armL, armR);
   person.userData.limbs = { legL, legR, armL, armR };
-  person.userData.torso = torso;
   return person;
 }
 

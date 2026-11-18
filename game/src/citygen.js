@@ -166,6 +166,8 @@ function makeWaterTexture(THREE, rng) {
   return tex;
 }
 
+import { mergeColoredParts, coloredMaterial, boxPart } from './geomerge.js';
+
 export function buildCity(THREE, scene, rng) {
   const city = {
     colliders: [],       // {minX,maxX,minZ,maxZ} for buildings & big props
@@ -223,13 +225,17 @@ export function buildCity(THREE, scene, rng) {
     city.signs.push(mat);
     return mat;
   });
+  // signs are collected per material and merged into one mesh each at the end
+  const signParts = signMats.map(() => []);
   let signIdx = 0;
   const addSign = (x, y, z, rotY, w = 13) => {
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), signMats[signIdx++ % signMats.length]);
-    sign.position.set(x, y, z);
-    sign.rotation.y = rotY;
-    scene.add(sign);
+    const idx = signIdx++ % signMats.length;
+    const geo = new THREE.PlaneGeometry(w, w / 4);
+    geo.rotateY(rotY);
+    geo.translate(x, y, z);
+    signParts[idx].push({ geo, color: 0xffffff });
   };
+  const hutParts = [];
 
   const halfRoad = ROAD_WIDTH / 2;
   let buildingCount = 0;
@@ -267,17 +273,15 @@ export function buildCity(THREE, scene, rng) {
           const h = style.minH + rng() * (style.maxH - style.minH);
           const bx = x0 + cellW * (si + 0.5), bz = z0 + cellD * (sj + 0.5);
           const mat = matPool[Math.floor(rng() * matPool.length)];
-          const mesh = new THREE.Mesh(boxGeo(Math.round(w), Math.round(h), Math.round(d)),
-            [roofMat, roofMat, roofMat, roofMat, mat, mat]);
+          const mesh = new THREE.Mesh(boxGeo(Math.round(w), Math.round(h), Math.round(d)), mat);
           mesh.position.set(bx, h / 2, bz);
           scene.add(mesh);
           buildingCount++;
           city.colliders.push({ minX: bx - w / 2, maxX: bx + w / 2, minZ: bz - d / 2, maxZ: bz + d / 2 });
-          // rooftop box detail
+          // rooftop box detail, merged into a single mesh for the whole city
           if (rng() < 0.5) {
-            const hut = new THREE.Mesh(boxGeo(4, 2, 4), roofMat);
-            hut.position.set(bx + (rng() - 0.5) * w * 0.4, h + 1, bz + (rng() - 0.5) * d * 0.4);
-            scene.add(hut);
+            hutParts.push(boxPart(THREE, 4, 2, 4,
+              bx + (rng() - 0.5) * w * 0.4, h + 1, bz + (rng() - 0.5) * d * 0.4, 0x11101a));
           }
           // street-facing neon sign on the Mile and scattered elsewhere
           const nearMile = Math.abs(bx) < 44;
@@ -304,6 +308,17 @@ export function buildCity(THREE, scene, rng) {
   }
   city.buildingCount = buildingCount;
 
+  // flush the merged sign and rooftop-hut meshes
+  const white = coloredMaterial(THREE);
+  signParts.forEach((parts, i) => {
+    if (parts.length) scene.add(new THREE.Mesh(mergeColoredParts(THREE, parts), signMats[i]));
+  });
+  if (hutParts.length) {
+    const huts = new THREE.Mesh(mergeColoredParts(THREE, hutParts), white);
+    scene.add(huts);
+  }
+  void roofMat;
+
   buildSpecialPlaces(THREE, scene, rng, city, boxGeo);
   buildStreetlights(THREE, scene, city);
   buildRain(THREE, scene, city);
@@ -312,11 +327,17 @@ export function buildCity(THREE, scene, rng) {
 }
 
 function buildSpecialPlaces(THREE, scene, rng, city, boxGeo) {
+  // every static prop lands in one merged vertex-coloured mesh; colliders are
+  // recorded exactly as before, only the rendering is batched
+  const propParts = [];
   const addBox = (w, h, d, x, y, z, color, collide = true) => {
-    const m = new THREE.Mesh(boxGeo(w, h, d), new THREE.MeshLambertMaterial({ color }));
+    propParts.push(boxPart(THREE, w, h, d, x, y, z, color));
+    if (collide) city.colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
+  };
+  const addGlowBox = (w, h, d, x, y, z, color) => {
+    const m = new THREE.Mesh(boxGeo(w, h, d), new THREE.MeshBasicMaterial({ color }));
     m.position.set(x, y, z);
     scene.add(m);
-    if (collide) city.colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
     return m;
   };
 
@@ -337,24 +358,19 @@ function buildSpecialPlaces(THREE, scene, rng, city, boxGeo) {
 
   // St. Mirella Hospital — respawn point, pale block with a red cross sign.
   addBox(26, 14, 16, -156, 7, -156, 0xcfd4de);
-  const crossMat = new THREE.MeshBasicMaterial({ color: 0xff4545 });
-  const c1 = new THREE.Mesh(boxGeo(5, 1.4, 0.3), crossMat); c1.position.set(-156, 11, -147.8); scene.add(c1);
-  const c2 = new THREE.Mesh(boxGeo(1.4, 5, 0.3), crossMat); c2.position.set(-156, 11, -147.8); scene.add(c2);
+  addGlowBox(5, 1.4, 0.3, -156, 11, -147.8, 0xff4545);
+  addGlowBox(1.4, 5, 0.3, -156, 11, -147.8, 0xff4545);
 
   // The Harbor Vault — a squat stronghouse the finale robs.
   addBox(20, 10, 14, 64, 5, 224, 0x4a4438);
-  const vaultDoor = new THREE.Mesh(boxGeo(6, 7, 0.4), new THREE.MeshBasicMaterial({ color: 0xffc857 }));
-  vaultDoor.position.set(64, 3.5, 216.8);
-  scene.add(vaultDoor);
+  addGlowBox(6, 7, 0.4, 64, 3.5, 216.8, 0xffc857);
 
   // Old Market stalls in the plaza.
   const stallColors = [0xff3d8a, 0x2ee6ff, 0xffc857, 0x4dff9d, 0xff7847, 0x7b5cff];
   for (let i = 0; i < 10; i++) {
     const sx = 88 + (i % 5) * 8, sz = 14 + Math.floor(i / 5) * 16;
     addBox(4.4, 1.1, 2.6, sx, 0.55, sz, 0x5a4230);
-    const canopy = new THREE.Mesh(boxGeo(5.2, 0.25, 3.4), new THREE.MeshLambertMaterial({ color: stallColors[i % stallColors.length] }));
-    canopy.position.set(sx, 2.5, sz);
-    scene.add(canopy);
+    propParts.push(boxPart(THREE, 5.2, 0.25, 3.4, sx, 2.5, sz, stallColors[i % stallColors.length]));
   }
 
   // Dockyards: stacked shipping containers and two cranes.
@@ -367,8 +383,10 @@ function buildSpecialPlaces(THREE, scene, rng, city, boxGeo) {
   }
   for (const [cxp, czp] of [[-120, 210], [30, 214]]) {
     addBox(2.4, 26, 2.4, cxp, 13, czp, 0x8a6d2f);
-    const jib = addBox(30, 2, 2, cxp + 10, 26, czp, 0x8a6d2f, false);
-    jib.rotation.z = 0.06;
+    const jibGeo = new THREE.BoxGeometry(30, 2, 2);
+    jibGeo.rotateZ(0.06);
+    jibGeo.translate(cxp + 10, 26, czp);
+    propParts.push({ geo: jibGeo, color: 0x8a6d2f });
     addBox(0.4, 10, 0.4, cxp + 22, 20, czp, 0x555560, false);
   }
 
@@ -376,6 +394,7 @@ function buildSpecialPlaces(THREE, scene, rng, city, boxGeo) {
   for (const px of [-120, -30, 60, 150]) {
     addBox(8, 1, 34, px, 0.2, 258, 0x3a3f47, false);
   }
+  scene.add(new THREE.Mesh(mergeColoredParts(THREE, propParts), coloredMaterial(THREE)));
 
   // Glowing objective beacon column (moved around by the story module).
   const beaconMat = new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0.3, depthWrite: false });

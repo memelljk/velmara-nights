@@ -104,8 +104,9 @@ export function setupShotScene(G, name) {
 /** Runs after the world update each shot-mode frame; stages late beats. */
 export function updateShotScene(G) {
   G.shotFrame++;
-  if (G.shotName === 'cover' && G.shotFrame === 40) {
+  if (G.shotName === 'cover' && G.shotFrame === 48) {
     G.showBanner('FIRST PARCEL', 'New job from Odile Vane — the Neon Mile');
+    G.ui.bannerUntil = G.time + 30; // hold the banner for the camera
   }
   if (G.shotName === 'chase') {
     G.setObjective('Lose the police — break sight and lie low!', null);

@@ -69,8 +69,8 @@ const camera = new G.THREE.PerspectiveCamera(58, window.innerWidth / window.inne
 camera.position.set(0, 26, -60);
 G.camera = camera;
 
-scene.add(new G.THREE.HemisphereLight(0x3d4a7d, 0x0b0916, 0.85));
-const moon = new G.THREE.DirectionalLight(0x8fb4ff, 0.55);
+scene.add(new G.THREE.HemisphereLight(0x3d4a7d, 0x0b0916, 1.02));
+const moon = new G.THREE.DirectionalLight(0x8fb4ff, 0.68);
 moon.position.set(80, 160, -60);
 scene.add(moon);
 const mileGlow = new G.THREE.PointLight(0xff3d8a, 0.9, 120);
@@ -487,7 +487,8 @@ function updateCamera(dt) {
 let lastNow = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
-  let dt = Math.min(0.05, (now - lastNow) / 1000);
+  // clamp both ways: a first-frame timestamp skew must never run time backwards
+  let dt = Math.max(0, Math.min(0.05, (now - lastNow) / 1000));
   lastNow = now;
   if (G.mode === 'pause') {
     renderer.render(scene, camera);

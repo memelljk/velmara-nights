@@ -3,6 +3,9 @@
 // road grid, brakes for trouble and flees gunfire.
 
 import { AVENUES, WATER_Z, collideWithBuildings } from './citygen.js';
+import { mergeColoredParts, coloredMaterial, boxPart } from './geomerge.js';
+
+let carBodyMaterial = null;
 
 export const CAR_MODELS = [
   { name: 'Kestrel Coupe', topSpeed: 34, accel: 17, grip: 9, colors: [0xd84040, 0x3050c8, 0xe8e4da, 0x22242c, 0x28a068] },
@@ -31,31 +34,23 @@ function getSmokeTexture(THREE) {
 
 export function makeCarMesh(THREE, colorHex, isPolice = false) {
   const car = new THREE.Group();
-  const paint = new THREE.MeshLambertMaterial({ color: isPolice ? 0xe8ecf2 : colorHex });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x14151c });
-  const glass = new THREE.MeshLambertMaterial({ color: 0x0e2233, emissive: 0x0a2e44 });
-
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.55, 4.3), paint);
-  body.position.y = 0.55;
-  car.add(body);
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.34, 0.9), paint);
-  nose.position.set(0, 0.48, 2.3);
-  car.add(nose);
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 2.1), glass);
-  cabin.position.set(0, 1.08, -0.25);
-  car.add(cabin);
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(2.04, 0.16, 4.34), dark);
-  trim.position.y = 0.3;
-  car.add(trim);
-
+  if (!carBodyMaterial) carBodyMaterial = coloredMaterial(THREE);
+  const paint = isPolice ? 0xe8ecf2 : colorHex;
+  // the whole shell — body, nose, glass cabin, trim, lamps — is one merged
+  // vertex-coloured mesh: one draw call per car instead of a dozen
+  const parts = [
+    boxPart(THREE, 2.0, 0.55, 4.3, 0, 0.55, 0, paint),
+    boxPart(THREE, 1.9, 0.34, 0.9, 0, 0.48, 2.3, paint),
+    boxPart(THREE, 1.7, 0.55, 2.1, 0, 1.08, -0.25, 0x11384e),
+    boxPart(THREE, 2.04, 0.16, 4.34, 0, 0.3, 0, 0x14151c),
+    boxPart(THREE, 0.4, 0.16, 0.08, -0.62, 0.58, 2.72, 0xfff2b0),
+    boxPart(THREE, 0.4, 0.16, 0.08, 0.62, 0.58, 2.72, 0xfff2b0),
+    boxPart(THREE, 0.4, 0.14, 0.08, -0.62, 0.6, -2.16, 0xff2a2a),
+    boxPart(THREE, 0.4, 0.14, 0.08, 0.62, 0.6, -2.16, 0xff2a2a),
+  ];
   if (isPolice) {
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.06, 0.2, 4.0),
-      new THREE.MeshLambertMaterial({ color: 0x1c3fae }));
-    stripe.position.y = 0.62;
-    car.add(stripe);
-    const barBase = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.1, 0.4), dark);
-    barBase.position.set(0, 1.42, -0.25);
-    car.add(barBase);
+    parts.push(boxPart(THREE, 2.06, 0.2, 4.0, 0, 0.62, 0, 0x1c3fae));
+    parts.push(boxPart(THREE, 1.3, 0.1, 0.4, 0, 1.42, -0.25, 0x14151c));
     const flashL = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.34),
       new THREE.MeshBasicMaterial({ color: 0xff2222 }));
     flashL.position.set(-0.34, 1.52, -0.25);
@@ -66,25 +61,14 @@ export function makeCarMesh(THREE, colorHex, isPolice = false) {
     car.add(flashR);
     car.userData.flashers = [flashL, flashR];
   }
-
-  // headlights + fake light cones for the wet street
-  const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
-  for (const sx of [-0.62, 0.62]) {
-    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.16, 0.08), lightMat);
-    lamp.position.set(sx, 0.58, 2.72);
-    car.add(lamp);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.14, 0.08),
-      new THREE.MeshBasicMaterial({ color: 0xff2a2a }));
-    tail.position.set(sx, 0.6, -2.16);
-    car.add(tail);
-  }
+  car.add(new THREE.Mesh(mergeColoredParts(THREE, parts), carBodyMaterial));
   const coneMat = new THREE.MeshBasicMaterial({
-    color: 0xffedb5, transparent: true, opacity: 0.1,
+    color: 0xffedb5, transparent: true, opacity: 0.045,
     blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
   });
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.7, 8.5, 10, 1, true), coneMat);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.15, 6.5, 10, 1, true), coneMat);
   cone.rotation.x = Math.PI / 2 + 0.1;
-  cone.position.set(0, 0.5, 6.6);
+  cone.position.set(0, 0.45, 5.4);
   car.add(cone);
 
   const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.3, 10);
